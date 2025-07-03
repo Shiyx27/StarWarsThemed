@@ -1,15 +1,5 @@
-# Sith Archives (keep photos private)
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
 venv/
-.venv/
 .env
-.DS_Store
-Thumbs.db
 static/images/captured/*
 static/images/generated_filters/*
-data/
-*.log

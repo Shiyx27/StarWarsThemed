@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Gallery{% endblock %}
+{% block body %}
+<div class="container">
+  <h1 class="neon">📸 Gallery</h1>
+  <a href="{{ url_for('index') }}" class="btn">⬅ Back</a>
+  <div class="grid">
+    {% for img in images %}
+      <div class="card">
+        <img src="{{ url_for('static',filename='images/captured/'+img) }}">
+        <a class="btn small" href="{{ url_for('download',filename=img) }}">⬇ Download</a>
+      </div>
+    {% else %}
+      <p>No photos yet.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

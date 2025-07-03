@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Photobooth{% endblock %}
+{% block body %}
+<div class="container">
+  <h1 class="neon">🖤 Dark-Side Photobooth 🖤</h1>
+
+  <div class="cam-wrapper">
+      <img id="video-stream" src="{{ url_for('video_feed') }}">
+      <div id="status" class="status">Choose a filter…</div>
+  </div>
+
+  <div class="controls">
+      <button id="capture" class="btn primary">📸 Capture</button>
+      <a href="{{ url_for('gallery') }}" class="btn">🖼️ Gallery</a>
+  </div>
+
+  <h3>Classic Filters</h3>
+  <div class="filter-bar">
+      <button class="filter" data-filter="none">🚫 None</button>
+      <button class="filter" data-filter="vader">💀 Vader</button>
+      <button class="filter" data-filter="sith">🔴 Sith</button>
+      <button class="filter" data-filter="jedi">🔵 Jedi</button>
+      <button class="filter" data-filter="helmet">⚪ Trooper</button>
+  </div>
+
+  <h3>Custom – powered by Gemini</h3>
+  <input id="prompt" placeholder="e.g. Mandalorian helmet with neon glow">
+  <button id="generate" class="btn ai">🤖 Generate with AI</button>
+  <div id="gen-status" class="status"></div>
+</div>
+{% endblock %}
