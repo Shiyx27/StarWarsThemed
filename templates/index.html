@@ -1,31 +1,197 @@
-{% extends "base.html" %}
-{% block title %}Photobooth{% endblock %}
-{% block body %}
-<div class="container">
-  <h1 class="neon">🖤 Dark-Side Photobooth 🖤</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Sith Photobooth - Embrace the Dark Side</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen active">
+        <div class="loading-content">
+            <div class="death-star-loader">
+                <div class="death-star"></div>
+                <div class="laser-beam"></div>
+            </div>
+            <h2 class="loading-text">Accessing Imperial Database...</h2>
+            <div class="loading-bar">
+                <div class="loading-progress"></div>
+            </div>
+            <p class="loading-subtitle">Initializing Sith Protocol</p>
+        </div>
+    </div>
 
-  <div class="cam-wrapper">
-      <img id="video-stream" src="{{ url_for('video_feed') }}">
-      <div id="status" class="status">Choose a filter…</div>
-  </div>
+    <!-- Main Application -->
+    <div id="app" class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="imperial-logo">
+                    <svg viewBox="0 0 24 24" class="imperial-symbol">
+                        <path d="M12 2l3.09 6.26L22 9l-5.91 1.74L18 17l-6-3.27L6 17l1.91-6.26L2 9l6.91-0.74L12 2z"/>
+                    </svg>
+                </div>
+                <h1 class="app-title">
+                    <span class="sith-text">SITH</span>
+                    <span class="photobooth-text">PHOTOBOOTH</span>
+                </h1>
+                <div class="header-controls">
+                    <button id="audio-toggle" class="btn btn--icon" title="Toggle Audio">
+                        <span class="audio-icon">🔊</span>
+                    </button>
+                    <button id="gallery-btn" class="btn btn--icon" title="View Gallery">
+                        <span class="gallery-icon">🖼️</span>
+                    </button>
+                </div>
+            </div>
+        </header>
 
-  <div class="controls">
-      <button id="capture" class="btn primary">📸 Capture</button>
-      <a href="{{ url_for('gallery') }}" class="btn">🖼️ Gallery</a>
-  </div>
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Camera Section -->
+            <section class="camera-section">
+                <div class="camera-container">
+                    <!-- Video Element -->
+                    <video id="camera-video" autoplay playsinline muted></video>
+                    
+                    <!-- Canvas for Processing -->
+                    <canvas id="camera-canvas"></canvas>
+                    
+                    <!-- Camera Overlay -->
+                    <div class="camera-overlay">
+                        <div class="targeting-system">
+                            <div class="crosshair"></div>
+                            <div class="scan-lines">
+                                <div class="scan-line"></div>
+                                <div class="scan-line"></div>
+                                <div class="scan-line"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Status Display -->
+                        <div class="status-display">
+                            <div class="status-item">
+                                <span class="status-label">Target Acquired</span>
+                                <span class="status-value" id="face-detected">No</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">Dark Side Level</span>
+                                <span class="status-value" id="dark-side-level">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Camera Error -->
+                    <div id="camera-error" class="camera-error" style="display: none;">
+                        <div class="error-content">
+                            <h3>Camera Access Denied</h3>
+                            <p>The Emperor requires access to your imaging systems.</p>
+                            <button class="btn btn--primary" onclick="requestCameraPermission()">
+                                Grant Access to the Empire
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
-  <h3>Classic Filters</h3>
-  <div class="filter-bar">
-      <button class="filter" data-filter="none">🚫 None</button>
-      <button class="filter" data-filter="vader">💀 Vader</button>
-      <button class="filter" data-filter="sith">🔴 Sith</button>
-      <button class="filter" data-filter="jedi">🔵 Jedi</button>
-      <button class="filter" data-filter="helmet">⚪ Trooper</button>
-  </div>
+            <!-- Controls Panel -->
+            <section class="controls-section">
+                <!-- Filter Selection -->
+                <div class="filter-panel">
+                    <h3 class="panel-title">Choose Your Destiny</h3>
+                    <div class="filter-grid" id="filter-grid">
+                        <!-- Filters will be loaded dynamically -->
+                    </div>
+                </div>
 
-  <h3>Custom – powered by Gemini</h3>
-  <input id="prompt" placeholder="e.g. Mandalorian helmet with neon glow">
-  <button id="generate" class="btn ai">🤖 Generate with AI</button>
-  <div id="gen-status" class="status"></div>
-</div>
-{% endblock %}
+                <!-- Capture Controls -->
+                <div class="capture-panel">
+                    <div class="capture-controls">
+                        <button id="capture-btn" class="btn btn--capture" disabled>
+                            <span class="lightsaber-icon">🗡️</span>
+                            <span class="btn-text">Capture the Dark Side</span>
+                            <div class="lightsaber-glow"></div>
+                        </button>
+                        
+                        <div class="secondary-controls">
+                            <button id="filter-toggle" class="btn btn--secondary">
+                                <span>Toggle Filter</span>
+                            </button>
+                            <button id="switch-camera" class="btn btn--secondary">
+                                <span>Switch Camera</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Audio Controls -->
+        <div class="audio-controls" id="audio-controls">
+            <div class="audio-panel">
+                <h4>Imperial Sound Control</h4>
+                <div class="audio-options">
+                    <button class="audio-btn" data-sound="imperial-march">
+                        <span>🎵</span> Imperial March
+                    </button>
+                    <button class="audio-btn" data-sound="lightsaber-on">
+                        <span>🗡️</span> Lightsaber
+                    </button>
+                    <button class="audio-btn" data-sound="vader-breathing">
+                        <span>🫁</span> Vader Breathing
+                    </button>
+                    <button class="audio-btn" data-sound="tie-fighter">
+                        <span>🚀</span> TIE Fighter
+                    </button>
+                </div>
+                <div class="volume-control">
+                    <label>Volume</label>
+                    <input type="range" id="volume-slider" min="0" max="100" value="50">
+                </div>
+            </div>
+        </div>
+
+        <!-- Gallery Modal -->
+        <div id="gallery-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Imperial Photo Archive</h3>
+                    <button class="btn btn--close" onclick="closeGallery()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="gallery-grid" class="gallery-grid">
+                        <!-- Photos will be loaded dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification System -->
+        <div id="notification-container" class="notification-container"></div>
+    </div>
+
+    <!-- Audio Elements -->
+    <audio id="background-audio" loop>
+        <source src="{{ url_for('static', filename='audio/imperial-march.mp3') }}" type="audio/mpeg">
+    </audio>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/camera.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/filters.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/audio.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

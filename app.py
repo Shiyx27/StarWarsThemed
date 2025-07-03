@@ -1,148 +1,168 @@
-import os, cv2, datetime, threading
-from flask import Flask, Response, render_template, jsonify, request, send_from_directory, abort
-from dotenv import load_dotenv
-from utils.face_detector import FaceDetector
-from utils.filter_manager import FilterManager
-from utils.gemini_ai import GeminiFilterGenerator
+from flask import Flask, render_template, request, jsonify, send_file
+from flask_cors import CORS
+import os
+import base64
+import io
+from PIL import Image
+import json
+from datetime import datetime
+from services.gemini_service import GeminiService
+from config import Config
 
-load_dotenv()
-app = Flask(__name__, static_folder="static")
-CAPTURED_DIR = os.path.join(app.static_folder, "images", "captured")
+app = Flask(__name__, static_folder='static')
+app.config.from_object(Config)
+CORS(app)
 
-# Global variables
-camera = None
-face_detector = None
-filter_manager = None
-gemini_generator = None
-current_filter = None
-output_frame = None
-lock = threading.Lock()
+# Initialize services
+gemini_service = GeminiService(app.config['GEMINI_API_KEY'])
 
-def initialize_app():
-    global camera, face_detector, filter_manager, gemini_generator
-    camera = cv2.VideoCapture(0)
-    face_detector = FaceDetector()
-    filter_manager = FilterManager()
-    gemini_generator = GeminiFilterGenerator(os.getenv("GEMINI_API_KEY"))
-
-@app.route("/")
+@app.route('/')
 def index():
-    return render_template("index.html")
-    try:
-        images = sorted(os.listdir(CAPTURED_DIR))
-    except FileNotFoundError:
-        images = []
-    # Filter to common image extensions:
-    images = [f for f in images if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))]
-    return render_template("gallery.html", images=images)
+    """Main photobooth interface"""
+    return render_template('index.html')
 
-@app.route("/gallery")
-def gallery():
-    image_dir = "static/images/captured"
-    if not os.path.exists(image_dir):
-        os.makedirs(image_dir)
-    
-    images = []
-    for filename in os.listdir(image_dir):
-        if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-            images.append(filename)
-    
-    images.sort(reverse=True)  # Most recent first
-    return render_template("gallery.html", images=images)
+@app.route('/api/filters')
+def get_filters():
+    """Get available Sith-themed filters"""
+    filters = [
+        {
+            "id": "sith-lord",
+            "name": "Sith Lord Transformation",
+            "prompt": "Transform me into a Sith Lord with pale skin, yellow eyes, and dark hood",
+            "icon": "⚔️",
+            "description": "Embrace the dark side with full Sith transformation"
+        },
+        {
+            "id": "vader-mask",
+            "name": "Darth Vader Mask",
+            "prompt": "Add Darth Vader's iconic black mask and helmet to my face",
+            "icon": "🎭",
+            "description": "Become the Dark Lord of the Sith"
+        },
+        {
+            "id": "sith-eyes",
+            "name": "Glowing Red Sith Eyes",
+            "prompt": "Give me glowing red Sith eyes with dark energy emanating",
+            "icon": "👁️",
+            "description": "Channel your hatred through burning Sith eyes"
+        },
+        {
+            "id": "dark-corruption",
+            "name": "Dark Side Corruption",
+            "prompt": "Apply dark side corruption with pale skin and dark veins",
+            "icon": "⚡",
+            "description": "Show the toll of unlimited power"
+        },
+        {
+            "id": "imperial-officer",
+            "name": "Imperial Officer",
+            "prompt": "Add Imperial officer uniform with rank insignia and cap",
+            "icon": "🎖️",
+            "description": "Command the Imperial fleet"
+        },
+        {
+            "id": "lightsaber-duel",
+            "name": "Lightsaber Duel Scene",
+            "prompt": "Add red lightsaber and dramatic duel lighting effects",
+            "icon": "🗡️",
+            "description": "Engage in epic lightsaber combat"
+        }
+    ]
+    return jsonify(filters)
 
-def gen_frames():
-    global output_frame, current_filter
-    while True:
-        success, frame = camera.read()
-        if not success:
-            break
-            
-        # Mirror the frame
-        frame = cv2.flip(frame, 1)
-        
-        # Detect faces
-        faces = face_detector.detect_faces(frame)
-        
-        # ✅ FIXED: Use len() instead of != ()
-        if current_filter and len(faces) > 0:
-            frame = filter_manager.apply_filter(frame, faces, current_filter)
-            
-        # Encode frame
-        ret, buffer = cv2.imencode(".jpg", frame)
-        frame_bytes = buffer.tobytes()
-        
-        # Store frame for capture
-        with lock:
-            output_frame = frame_bytes
-            
-        yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" +
-               frame_bytes + b"\r\n")
-
-@app.route("/video_feed")
-def video_feed():
-    return Response(gen_frames(),
-                    mimetype="multipart/x-mixed-replace; boundary=frame")
-
-@app.route("/set_filter/<name>")
-def set_filter(name):
-    global current_filter
-    current_filter = None if name == "none" else name
-    print(f"Filter set to: {current_filter}")  # Debug line
-    return jsonify({"status": "success", "filter": name})
-
-@app.route("/generate_custom_filter", methods=["POST"])
-def generate_custom_filter():
+@app.route('/api/apply-filter', methods=['POST'])
+def apply_filter():
+    """Apply Gemini AI filter to image"""
     try:
         data = request.get_json()
-        prompt = data.get("prompt", "")
+        image_data = data.get('image')
+        filter_prompt = data.get('prompt')
         
-        if not prompt:
-            return jsonify({"status": "error", "message": "Empty prompt"})
+        if not image_data or not filter_prompt:
+            return jsonify({'error': 'Missing image or prompt'}), 400
         
-        result = gemini_generator.generate_filter(prompt)
+        # Decode base64 image
+        image_bytes = base64.b64decode(image_data.split(',')[1])
         
-        if result["status"] == "success":
-            filter_manager.add_custom_filter(result["filter_name"], result["filter_data"])
-            return jsonify({
-                "status": "success",
-                "filter_name": result["filter_name"],
-                "message": "Filter generated successfully!"
-            })
-        else:
-            return jsonify(result)
-            
+        # Process with Gemini API
+        result = gemini_service.process_image_with_filter(image_bytes, filter_prompt)
+        
+        return jsonify(result)
+        
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
+        return jsonify({'error': str(e)}), 500
 
-@app.route("/capture")
-def capture():
-    with lock:
-        if output_frame is None:
-            return jsonify({"status": "error", "message": "No frame available"})
-            
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"starwars_{timestamp}.jpg"
-        filepath = os.path.join("static/images/captured", filename)
+@app.route('/api/capture-photo', methods=['POST'])
+def capture_photo():
+    """Save captured photo"""
+    try:
+        data = request.get_json()
+        image_data = data.get('image')
+        filter_used = data.get('filter', 'none')
         
-        # Ensure directory exists
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        if not image_data:
+            return jsonify({'error': 'No image data provided'}), 400
         
-        with open(filepath, "wb") as f:
-            f.write(output_frame)
-            
-    return jsonify({"status": "success", "filename": filename})
+        # Decode and save image
+        image_bytes = base64.b64decode(image_data.split(',')[1])
+        
+        # Generate filename
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"sith_photo_{timestamp}_{filter_used}.jpg"
+        filepath = os.path.join('uploads', filename)
+        
+        # Ensure uploads directory exists
+        os.makedirs('uploads', exist_ok=True)
+        
+        # Save image
+        with open(filepath, 'wb') as f:
+            f.write(image_bytes)
+        
+        return jsonify({
+            'success': True,
+            'filename': filename,
+            'filepath': filepath
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-@app.route("/download/<filename>")
-def download(filename):
-    # Security: prevent path traversal
-    if ".." in filename or filename.startswith("/"):
-        abort(400)
-    return send_from_directory(
-        CAPTURED_DIR,
-        filename,
-        as_attachment=True
-    )
+@app.route('/api/download/<filename>')
+def download_photo(filename):
+    """Download captured photo"""
+    try:
+        filepath = os.path.join('uploads', filename)
+        if os.path.exists(filepath):
+            return send_file(filepath, as_attachment=True)
+        else:
+            return jsonify({'error': 'File not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-if __name__ == "__main__":
-    initialize_app()
-    app.run(debug=True, threaded=True)
+@app.route('/api/gallery')
+def get_gallery():
+    """Get all captured photos"""
+    try:
+        uploads_dir = 'uploads'
+        if not os.path.exists(uploads_dir):
+            return jsonify([])
+        
+        photos = []
+        for filename in os.listdir(uploads_dir):
+            if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+                photos.append({
+                    'filename': filename,
+                    'url': f'/api/download/{filename}',
+                    'timestamp': os.path.getmtime(os.path.join(uploads_dir, filename))
+                })
+        
+        # Sort by timestamp (newest first)
+        photos.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        return jsonify(photos)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
