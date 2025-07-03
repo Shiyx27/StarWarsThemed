@@ -2,52 +2,66 @@ import cv2
 import os
 import urllib.request
 
-CASCADE_LOCAL = "data/haarcascades/lbpcascade_frontalface.xml"
-CASCADE_URL   = "https://raw.githubusercontent.com/opencv/opencv/master/data/lbpcascades/lbpcascade_frontalface.xml"
+CASCADE_LOCAL = "data/haarcascades/haarcascade_frontalface_default.xml"
+CASCADE_URL = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
 
 class FaceDetector:
-    def __init__(self, downscale=2, skip_frames=2):
-        """
-        downscale: factor by which to shrink the incoming frame before detection
-        skip_frames: detect only once every N frames
-        """
-        self.downscale   = downscale
-        self.skip_frames = skip_frames
-        self.frame_count = 0
-
+    def __init__(self):
         self.cascade_path = self._ensure_cascade_file()
-        self.cascade      = cv2.CascadeClassifier(self.cascade_path)
+        self.cascade = cv2.CascadeClassifier(self.cascade_path)
+        
+        # Verify the cascade loaded successfully
         if self.cascade.empty():
-            raise ValueError(f"Failed to load LBP cascade from {self.cascade_path}")
-
+            raise ValueError(f"Failed to load Haar cascade from {self.cascade_path}")
+    
     def _ensure_cascade_file(self):
+        """Download cascade file if it doesn't exist or is corrupted"""
+        # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(CASCADE_LOCAL), exist_ok=True)
-        if not os.path.exists(CASCADE_LOCAL):
-            print("📥 Downloading LBP cascade (faster) …")
+        
+        # Check if file exists and is valid
+        if os.path.exists(CASCADE_LOCAL):
+            try:
+                # Test if file can be loaded
+                test_cascade = cv2.CascadeClassifier(CASCADE_LOCAL)
+                if not test_cascade.empty():
+                    print(f"✅ Using existing cascade file: {CASCADE_LOCAL}")
+                    return CASCADE_LOCAL
+                else:
+                    print(f"⚠️ Existing cascade file is corrupted, re-downloading...")
+                    os.remove(CASCADE_LOCAL)
+            except:
+                print(f"⚠️ Error loading existing cascade file, re-downloading...")
+                if os.path.exists(CASCADE_LOCAL):
+                    os.remove(CASCADE_LOCAL)
+        
+        # Download the file
+        print(f"📥 Downloading Haar cascade file...")
+        try:
             urllib.request.urlretrieve(CASCADE_URL, CASCADE_LOCAL)
-        return CASCADE_LOCAL
-
+            print(f"✅ Download completed: {CASCADE_LOCAL}")
+            
+            # Verify the downloaded file
+            test_cascade = cv2.CascadeClassifier(CASCADE_LOCAL)
+            if test_cascade.empty():
+                raise ValueError("Downloaded cascade file is invalid")
+                
+            return CASCADE_LOCAL
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to download cascade file: {e}")
+    
     def detect_faces(self, frame):
-        # Only run detection once every skip_frames
-        self.frame_count = (self.frame_count + 1) % self.skip_frames
-        if self.frame_count != 0:
+        """Detect faces in the frame and return coordinates"""
+        try:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = self.cascade.detectMultiScale(
+                gray,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(30, 30)
+            )
+            return faces
+        except Exception as e:
+            print(f"Error in face detection: {e}")
             return []
-
-        # 1) downscale to speed up detection
-        h, w = frame.shape[:2]
-        small = cv2.resize(frame, (w // self.downscale, h // self.downscale))
-        gray  = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
-
-        # 2) use LBP cascade which is much faster (but slightly less accurate)
-        faces = self.cascade.detectMultiScale(
-            gray,
-            scaleFactor=1.2,    # larger steps = fewer scales to test
-            minNeighbors=3,     # lower => more detections (and more false positives)
-            flags=cv2.CASCADE_SCALE_IMAGE,
-            minSize=(20, 20)    # smaller window
-        )
-
-        # 3) scale the coordinates back up to original frame size
-        faces = [(x*self.downscale, y*self.downscale,
-                  w*self.downscale, h*self.downscale) for (x,y,w,h) in faces]
-        return faces
