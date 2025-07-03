@@ -59,7 +59,8 @@ class FaceDetector:
                 gray,
                 scaleFactor=1.1,
                 minNeighbors=5,
-                minSize=(30, 30)
+                minSize=(30, 30),
+                flags=cv2.CASCADE_SCALE_IMAGE
             )
             return faces
         except Exception as e:

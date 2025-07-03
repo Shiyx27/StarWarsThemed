@@ -1,6 +1,11 @@
-{% extends "base.html" %}
-{% block title %}Photobooth{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dark-Side Photobooth</title>
+  <link rel="stylesheet" href="{{ url_for('static',filename='css/dark-theme.css') }}">
+</head>
+<body>
 <div class="container">
   <h1 class="neon">🖤 Dark-Side Photobooth 🖤</h1>
 
@@ -21,6 +26,8 @@
       <button class="filter" data-filter="sith">🔴 Sith</button>
       <button class="filter" data-filter="jedi">🔵 Jedi</button>
       <button class="filter" data-filter="helmet">⚪ Trooper</button>
+      <button class="filter" data-filter="hologram">📡 Hologram</button>
+      <button class="filter" data-filter="force_lightning">⚡ Lightning</button>
   </div>
 
   <h3>Custom – powered by Gemini</h3>
@@ -28,4 +35,7 @@
   <button id="generate" class="btn ai">🤖 Generate with AI</button>
   <div id="gen-status" class="status"></div>
 </div>
-{% endblock %}
+
+<script src="{{ url_for('static',filename='js/main.js') }}"></script>
+</body>
+</html>
