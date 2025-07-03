@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Epic Gallery - Star Wars Photobooth</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ultimate-starwars.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🖼️ EPIC STAR WARS GALLERY 🖼️</h1>
+            <a href="{{ url_for('index') }}" class="btn primary">🔙 BACK TO PHOTOBOOTH</a>
+            <p>Your legendary moments captured in the galaxy far, far away...</p>
+        </header>
+
+        <div class="gallery-stats">
+            <div class="stat-card">
+                <h3>{{ images|length }}</h3>
+                <p>Epic Photos</p>
+            </div>
+            <div class="stat-card">
+                <h3>🌟</h3>
+                <p>Jedi Master Level</p>
+            </div>
+            <div class="stat-card">
+                <h3>⚡</h3>
+                <p>Force Power: Unlimited</p>
+            </div>
+        </div>
+
+        <div class="gallery-grid">
+            {% if images %}
+                {% for image in images %}
+                <div class="gallery-item">
+                    <img src="{{ url_for('static', filename='images/captured/' + image.filename) }}" 
+                         alt="Epic Star Wars Photo" loading="lazy">
+                    <div class="gallery-overlay">
+                        <div class="photo-info">
+                            <h4>{{ image.filename }}</h4>
+                            <p>📅 {{ image.date }}</p>
+                            <p>📏 {{ "%.1f"|format(image.size / 1024) }} KB</p>
+                        </div>
+                        <div class="photo-actions">
+                            <a href="{{ url_for('download_file', filename=image.filename) }}" 
+                               class="btn btn-small primary">⬇️ DOWNLOAD</a>
+                            <button class="btn btn-small secondary" 
+                                    onclick="sharePhoto('{{ image.filename }}')">📤 SHARE</button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-photos">
+                    <div class="empty-state">
+                        <h2>🌌 No Epic Photos Yet! 🌌</h2>
+                        <p>Your journey to becoming a Jedi photographer begins now...</p>
+                        <a href="{{ url_for('index') }}" class="btn primary">🚀 START YOUR ADVENTURE</a>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        function sharePhoto(filename) {
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Epic Star Wars Photo',
+                    text: 'Check out my awesome Star Wars photo!',
+                    url: window.location.origin + '/static/images/captured/' + filename
+                });
+            } else {
+                // Fallback: copy to clipboard
+                navigator.clipboard.writeText(window.location.origin + '/static/images/captured/' + filename);
+                alert('Photo link copied to clipboard!');
+            }
+        }
+    </script>
+</body>
+</html>
