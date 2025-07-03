@@ -1,5 +1,5 @@
 import os, cv2, datetime, threading
-from flask import Flask, Response, render_template, jsonify, request, send_from_directory
+from flask import Flask, Response, render_template, jsonify, request, send_from_directory, abort
 from dotenv import load_dotenv
 from utils.face_detector import FaceDetector
 from utils.filter_manager import FilterManager
@@ -7,6 +7,7 @@ from utils.gemini_ai import GeminiFilterGenerator
 
 load_dotenv()
 app = Flask(__name__, static_folder="static")
+CAPTURED_DIR = os.path.join(app.static_folder, "images", "captured")
 
 # Global variables
 camera = None
@@ -27,6 +28,13 @@ def initialize_app():
 @app.route("/")
 def index():
     return render_template("index.html")
+    try:
+        images = sorted(os.listdir(CAPTURED_DIR))
+    except FileNotFoundError:
+        images = []
+    # Filter to common image extensions:
+    images = [f for f in images if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))]
+    return render_template("gallery.html", images=images)
 
 @app.route("/gallery")
 def gallery():
@@ -125,8 +133,15 @@ def capture():
     return jsonify({"status": "success", "filename": filename})
 
 @app.route("/download/<filename>")
-def download_file(filename):
-    return send_from_directory("static/images/captured", filename, as_attachment=True)
+def download(filename):
+    # Security: prevent path traversal
+    if ".." in filename or filename.startswith("/"):
+        abort(400)
+    return send_from_directory(
+        CAPTURED_DIR,
+        filename,
+        as_attachment=True
+    )
 
 if __name__ == "__main__":
     initialize_app()
