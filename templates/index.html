@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Wars Photobooth - Gemini AI Powered</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌟 Star Wars Photobooth - AI Powered 🌟</h1>
+            <p>May the Force be with your photos! Now with Gemini AI filters!</p>
+        </header>
+
+        <div class="main-content">
+            <div class="camera-section">
+                <div class="camera-container">
+                    <img id="video-stream" src="{{ url_for('video_feed') }}" alt="Camera Feed">
+                    <div class="camera-overlay">
+                        <div id="status-message">Choose a filter and strike a pose!</div>
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <button id="capture-btn" class="btn btn-primary">📸 Capture Photo</button>
+                    <a href="{{ url_for('gallery') }}" class="btn btn-secondary">🖼️ View Gallery</a>
+                </div>
+            </div>
+
+            <div class="filters-section">
+                <h3>Choose Your Destiny</h3>
+                
+                <!-- Predefined Filters -->
+                <div class="filter-category">
+                    <h4>Classic Filters</h4>
+                    <div class="filter-grid">
+                        <button class="filter-btn" data-filter="none">
+                            <span class="filter-icon">👤</span>
+                            <span class="filter-name">No Filter</span>
+                        </button>
+                        <button class="filter-btn" data-filter="vader">
+                            <span class="filter-icon">🎭</span>
+                            <span class="filter-name">Darth Vader</span>
+                        </button>
+                        <button class="filter-btn" data-filter="stormtrooper">
+                            <span class="filter-icon">⚪</span>
+                            <span class="filter-name">Stormtrooper</span>
+                        </button>
+                        <button class="filter-btn" data-filter="yoda">
+                            <span class="filter-icon">👽</span>
+                            <span class="filter-name">Yoda</span>
+                        </button>
+                        <button class="filter-btn" data-filter="lightsaber">
+                            <span class="filter-icon">⚔️</span>
+                            <span class="filter-name">Lightsaber</span>
+                        </button>
+                        <button class="filter-btn" data-filter="sith">
+                            <span class="filter-icon">🔴</span>
+                            <span class="filter-name">Sith Lord</span>
+                        </button>
+                        <button class="filter-btn" data-filter="jedi">
+                            <span class="filter-icon">🔵</span>
+                            <span class="filter-name">Jedi Master</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- AI Enhanced Filters -->
+                <div class="filter-category">
+                    <h4>AI Enhanced Filters</h4>
+                    <div class="filter-grid">
+                        <button class="filter-btn" data-filter="hologram">
+                            <span class="filter-icon">📡</span>
+                            <span class="filter-name">Hologram</span>
+                        </button>
+                        <button class="filter-btn" data-filter="force_lightning">
+                            <span class="filter-icon">⚡</span>
+                            <span class="filter-name">Force Lightning</span>
+                        </button>
+                        <button class="filter-btn" data-filter="death_star">
+                            <span class="filter-icon">🌑</span>
+                            <span class="filter-name">Death Star</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Custom AI Filter Generator -->
+                <div class="filter-category">
+                    <h4>Create Custom Filter</h4>
+                    <div class="custom-filter-section">
+                        <input type="text" id="custom-filter-prompt" placeholder="Describe your Star Wars filter (e.g., 'Mandalorian helmet with jetpack')">
+                        <button id="generate-filter-btn" class="btn btn-ai">🤖 Generate with AI</button>
+                        <div id="generation-status" class="generation-status hidden">
+                            <div class="loading-spinner"></div>
+                            <span>Generating your custom filter...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Custom Generated Filters -->
+                <div class="filter-category" id="custom-filters-section" style="display: none;">
+                    <h4>Your Custom Filters</h4>
+                    <div class="filter-grid" id="custom-filters-grid">
+                        <!-- Custom filters will be added here dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="notification" class="notification hidden">
+            <span id="notification-text"></span>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
