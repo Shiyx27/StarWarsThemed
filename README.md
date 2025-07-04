@@ -3,6 +3,7 @@
 ![Star Wars Photobooth Banner](https://img.shields.io/badge/Star%20Wars-Photobooth-red?style=for-the-badge&logo=starwars)
 ![Full Stack Track](https://img.shields.io/badge/Track-FullStack-blue?style=for-the-badge) 
 
+<a href="https://starwarsthemed.pythonanywhere.com/" target="_blank">Try it out</a>
 
 ## 🎯 What is this project?
 
