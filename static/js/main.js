@@ -1,19 +1,11 @@
 /**
- * Optimized Main Application Logic
- * Performance-focused initialization and event handling
+ * Main Application Logic - Updated for Mask System
  */
 
 class PhotoboothApp {
     constructor() {
         this.isInitialized = false;
         this.loadingScreen = null;
-        this.loadingSteps = [
-            { name: 'Initializing core systems', duration: 300 },
-            { name: 'Starting camera', duration: 800 },
-            { name: 'Loading filters', duration: 400 },
-            { name: 'Preparing audio', duration: 200 },
-            { name: 'Finalizing setup', duration: 200 }
-        ];
         
         this.init();
     }
@@ -22,17 +14,16 @@ class PhotoboothApp {
         try {
             this.showLoadingScreen();
             
-            // Initialize in optimized order
+            // Initialize components in order
             await this.initializeCore();
             await this.initializeCamera();
-            await this.initializeFilters();
+            await this.initializeMasks();
             await this.initializeAudio();
             await this.finalizeSetup();
             
             this.isInitialized = true;
             this.hideLoadingScreen();
             
-            // Show welcome message
             setTimeout(() => {
                 this.showWelcomeMessage();
             }, 500);
@@ -45,78 +36,43 @@ class PhotoboothApp {
     }
     
     async initializeCore() {
-        await this.updateLoadingProgress(0);
-        
-        // Setup critical event listeners
         this.setupCoreEventListeners();
-        
-        // Preload critical resources
-        await this.preloadCriticalResources();
+        await new Promise(resolve => setTimeout(resolve, 300));
     }
     
     async initializeCamera() {
-        await this.updateLoadingProgress(1);
-        
-        // Initialize camera with timeout
         try {
             if (window.cameraManager) {
-                await Promise.race([
-                    window.cameraManager.initialize(),
-                    new Promise((_, reject) => 
-                        setTimeout(() => reject(new Error('Camera timeout')), 8000)
-                    )
-                ]);
+                await window.cameraManager.initialize();
             }
         } catch (error) {
             console.warn('Camera initialization failed:', error);
-            // Continue without camera
         }
+        await new Promise(resolve => setTimeout(resolve, 500));
     }
     
-    async initializeFilters() {
-        await this.updateLoadingProgress(2);
-        
-        // Filters load in background
-        if (window.filterManager) {
-            // Don't await - let it load asynchronously
-            window.filterManager.initializeFilters();
+    async initializeMasks() {
+        try {
+            if (window.maskManager) {
+                await window.maskManager.initialize();
+            }
+        } catch (error) {
+            console.warn('Mask system initialization failed:', error);
         }
+        await new Promise(resolve => setTimeout(resolve, 400));
     }
     
     async initializeAudio() {
-        await this.updateLoadingProgress(3);
-        
-        // Audio loads in background
         if (window.audioManager) {
-            // Don't await - audio is not critical
             window.audioManager.initializeAudio();
         }
+        await new Promise(resolve => setTimeout(resolve, 200));
     }
     
     async finalizeSetup() {
-        await this.updateLoadingProgress(4);
-        
-        // Final UI setup
         this.setupUI();
         this.enableControls();
-        
-        // Small delay for smooth transition
         await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    async preloadCriticalResources() {
-        // Only preload absolutely critical resources
-        const criticalPromises = [];
-        
-        // Preload font
-        if ('fonts' in document) {
-            criticalPromises.push(
-                document.fonts.load('1rem Orbitron').catch(() => {})
-            );
-        }
-        
-        // Don't preload images or audio - let them load as needed
-        await Promise.all(criticalPromises);
     }
     
     setupCoreEventListeners() {
@@ -175,7 +131,6 @@ class PhotoboothApp {
     }
     
     setupIntersectionObserver() {
-        // Lazy load gallery images
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
@@ -189,14 +144,12 @@ class PhotoboothApp {
             });
         });
         
-        // Observe gallery images
         document.querySelectorAll('img[data-src]').forEach(img => {
             observer.observe(img);
         });
     }
     
     enableControls() {
-        // Enable capture button when camera is ready
         const captureBtn = document.getElementById('capture-btn');
         if (captureBtn && window.cameraManager && window.cameraManager.isInitialized) {
             captureBtn.disabled = false;
@@ -209,38 +162,26 @@ class PhotoboothApp {
                 throw new Error('Camera not available');
             }
             
-            // Play capture sound immediately
+            // Play capture sound
             if (window.audioManager) {
-                window.audioManager.playCaptureSound();
+                window.audioManager.playSound('camera-shutter');
             }
             
-            // Capture image
+            // Capture image with mask overlay
             const imageData = window.cameraManager.capturePhoto();
             if (!imageData) {
                 throw new Error('Failed to capture image');
             }
             
-            // Get active filter
-            const activeFilter = window.filterManager ? 
-                window.filterManager.getActiveFilter() : null;
-            
-            // Process with AI if needed (async)
-            let processedImage = imageData;
-            if (activeFilter && activeFilter.id !== 'none' && window.filterManager) {
-                // Show processing notification
-                this.showNotification('Processing with AI...', 'info');
-                
-                const result = await window.filterManager.processImageWithGemini(imageData, activeFilter);
-                if (result.success && result.processed_image) {
-                    processedImage = result.processed_image;
-                }
-            }
+            // Get active mask info
+            const activeMask = window.maskManager ? 
+                window.maskManager.getActiveMask() : null;
             
             // Save the photo
-            await this.savePhoto(processedImage, activeFilter);
+            await this.savePhoto(imageData, activeMask);
             
             // Show success message
-            this.showSuccessMessage('Photo captured successfully!');
+            this.showSuccessMessage('Photo captured with mask overlay!');
             
         } catch (error) {
             console.error('Capture error:', error);
@@ -248,7 +189,7 @@ class PhotoboothApp {
         }
     }
     
-    async savePhoto(imageData, filter) {
+    async savePhoto(imageData, mask) {
         try {
             const response = await fetch('/api/capture-photo', {
                 method: 'POST',
@@ -257,7 +198,7 @@ class PhotoboothApp {
                 },
                 body: JSON.stringify({
                     image: imageData,
-                    filter: filter ? filter.id : 'none'
+                    mask: mask ? mask.id : 'none'
                 })
             });
             
@@ -299,7 +240,7 @@ class PhotoboothApp {
         galleryGrid.innerHTML = '';
         
         if (photos.length === 0) {
-            galleryGrid.innerHTML = '<p class="empty-gallery">No photos yet. Start capturing the dark side!</p>';
+            galleryGrid.innerHTML = '<p class="empty-gallery">No photos yet. Start capturing with masks!</p>';
         } else {
             photos.forEach(photo => {
                 const photoElement = this.createGalleryItem(photo);
@@ -315,7 +256,7 @@ class PhotoboothApp {
         item.className = 'gallery-item';
         
         item.innerHTML = `
-            <img data-src="${photo.url}" alt="Sith Photo" loading="lazy">
+            <img data-src="${photo.url}" alt="Sith Photo with Mask" loading="lazy">
             <div class="gallery-overlay">
                 <div class="gallery-actions">
                     <button class="btn btn--small" onclick="downloadPhoto('${photo.filename}')">
@@ -347,17 +288,21 @@ class PhotoboothApp {
             case 'Escape':
                 this.closeAllModals();
                 break;
+            case 'm':
+            case 'M':
+                if (window.maskManager) {
+                    window.maskManager.toggleAutoPosition();
+                }
+                break;
         }
     }
     
     handleVisibilityChange() {
         if (document.hidden) {
-            // Pause resources when hidden
             if (window.audioManager) {
                 window.audioManager.stopBackgroundMusic();
             }
         } else {
-            // Resume when visible
             if (window.audioManager && !window.audioManager.isMuted) {
                 window.audioManager.startBackgroundMusic();
             }
@@ -383,30 +328,9 @@ class PhotoboothApp {
         }
     }
     
-    async updateLoadingProgress(stepIndex) {
-        const step = this.loadingSteps[stepIndex];
-        if (!step) return;
-        
-        const loadingText = document.querySelector('.loading-text');
-        const loadingSubtitle = document.querySelector('.loading-subtitle');
-        const loadingProgress = document.querySelector('.loading-progress');
-        
-        if (loadingText) loadingText.textContent = step.name;
-        if (loadingSubtitle) loadingSubtitle.textContent = `Step ${stepIndex + 1} of ${this.loadingSteps.length}`;
-        
-        // Update progress bar
-        if (loadingProgress) {
-            const progress = ((stepIndex + 1) / this.loadingSteps.length) * 100;
-            loadingProgress.style.width = `${progress}%`;
-        }
-        
-        // Wait for step duration
-        await new Promise(resolve => setTimeout(resolve, step.duration));
-    }
-    
     // Notification methods
     showWelcomeMessage() {
-        this.showNotification('Welcome to the Dark Side!', 'success');
+        this.showNotification('Welcome to the Sith Photobooth! Choose a mask and embrace the dark side!', 'success');
     }
     
     showSuccessMessage(message) {
@@ -427,10 +351,9 @@ class PhotoboothApp {
         
         container.appendChild(notification);
         
-        // Auto-remove after 3 seconds
         setTimeout(() => {
             notification.remove();
-        }, 3000);
+        }, 4000);
     }
 }
 

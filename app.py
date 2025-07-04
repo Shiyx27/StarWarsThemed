@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
 import os
 import base64
@@ -9,7 +9,7 @@ from datetime import datetime
 from services.gemini_service import GeminiService
 from config import Config
 
-app = Flask(__name__, static_folder='static')
+app = Flask(__name__)
 app.config.from_object(Config)
 CORS(app)
 
@@ -21,71 +21,92 @@ def index():
     """Main photobooth interface"""
     return render_template('index.html')
 
-@app.route('/api/filters')
-def get_filters():
-    """Get available Sith-themed filters"""
-    filters = [
+@app.route('/api/masks')
+def get_masks():
+    """Get available Star Wars mask overlays"""
+    masks = [
         {
-            "id": "sith-lord",
-            "name": "Sith Lord Transformation",
-            "prompt": "Transform me into a Sith Lord with pale skin, yellow eyes, and dark hood",
-            "icon": "⚔️",
-            "description": "Embrace the dark side with full Sith transformation"
+            "id": "none",
+            "name": "No Mask",
+            "image": None,
+            "icon": "🚫",
+            "description": "Original camera feed without mask overlay"
         },
         {
             "id": "vader-mask",
-            "name": "Darth Vader Mask",
-            "prompt": "Add Darth Vader's iconic black mask and helmet to my face",
+            "name": "Darth Vader",
+            "image": "/static/masks/vader-mask.png",
             "icon": "🎭",
             "description": "Become the Dark Lord of the Sith"
         },
         {
-            "id": "sith-eyes",
-            "name": "Glowing Red Sith Eyes",
-            "prompt": "Give me glowing red Sith eyes with dark energy emanating",
-            "icon": "👁️",
-            "description": "Channel your hatred through burning Sith eyes"
+            "id": "sith-lord",
+            "name": "Sith Lord",
+            "image": "/static/masks/sith-lord-mask.png",
+            "icon": "⚔️",
+            "description": "Ancient Sith warrior mask"
         },
         {
-            "id": "dark-corruption",
-            "name": "Dark Side Corruption",
-            "prompt": "Apply dark side corruption with pale skin and dark veins",
-            "icon": "⚡",
-            "description": "Show the toll of unlimited power"
-        },
-        {
-            "id": "imperial-officer",
-            "name": "Imperial Officer",
-            "prompt": "Add Imperial officer uniform with rank insignia and cap",
+            "id": "storm-trooper",
+            "name": "Storm Trooper",
+            "image": "/static/masks/storm-trooper.png",
             "icon": "🎖️",
-            "description": "Command the Imperial fleet"
+            "description": "Imperial Storm Trooper helmet"
         },
         {
-            "id": "lightsaber-duel",
-            "name": "Lightsaber Duel Scene",
-            "prompt": "Add red lightsaber and dramatic duel lighting effects",
+            "id": "emperor",
+            "name": "Emperor",
+            "image": "/static/masks/emperor-mask.png",
+            "icon": "👑",
+            "description": "Dark Emperor hood and face"
+        },
+        {
+            "id": "kylo-ren",
+            "name": "Kylo Ren",
+            "image": "/static/masks/kylo-ren-mask.png",
             "icon": "🗡️",
-            "description": "Engage in epic lightsaber combat"
+            "description": "Knights of Ren mask"
+        },
+        {
+            "id": "jedi",
+            "name": "Jedi Master",
+            "image": "/static/masks/jedi-mask.png",
+            "icon": "✨",
+            "description": "Ancient Jedi Master hood"
         }
     ]
-    return jsonify(filters)
+    return jsonify(masks)
 
-@app.route('/api/apply-filter', methods=['POST'])
-def apply_filter():
-    """Apply Gemini AI filter to image"""
+@app.route('/static/masks/<filename>')
+def serve_mask(filename):
+    """Serve mask image files"""
+    return send_from_directory('static/masks', filename)
+
+@app.route('/api/apply-mask', methods=['POST'])
+def apply_mask():
+    """Apply mask overlay to captured image"""
     try:
         data = request.get_json()
         image_data = data.get('image')
-        filter_prompt = data.get('prompt')
+        mask_id = data.get('mask_id')
+        face_data = data.get('face_data', {})
         
-        if not image_data or not filter_prompt:
-            return jsonify({'error': 'Missing image or prompt'}), 400
+        if not image_data:
+            return jsonify({'error': 'No image data provided'}), 400
         
-        # Decode base64 image
-        image_bytes = base64.b64decode(image_data.split(',')[1])
+        # Process with mask overlay (server-side processing if needed)
+        result = {
+            'success': True,
+            'processed_image': image_data,  # Client-side processing handles the overlay
+            'mask_applied': mask_id,
+            'face_detected': bool(face_data)
+        }
         
-        # Process with Gemini API
-        result = gemini_service.process_image_with_filter(image_bytes, filter_prompt)
+        # Optional: Use Gemini for additional AI processing
+        if mask_id != 'none' and app.config.get('ENABLE_AI_PROCESSING'):
+            ai_result = gemini_service.enhance_mask_image(image_data, mask_id, face_data)
+            if ai_result.get('success'):
+                result.update(ai_result)
         
         return jsonify(result)
         
@@ -94,11 +115,11 @@ def apply_filter():
 
 @app.route('/api/capture-photo', methods=['POST'])
 def capture_photo():
-    """Save captured photo"""
+    """Save captured photo with mask overlay"""
     try:
         data = request.get_json()
         image_data = data.get('image')
-        filter_used = data.get('filter', 'none')
+        mask_used = data.get('mask', 'none')
         
         if not image_data:
             return jsonify({'error': 'No image data provided'}), 400
@@ -108,7 +129,7 @@ def capture_photo():
         
         # Generate filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"sith_photo_{timestamp}_{filter_used}.jpg"
+        filename = f"sith_photo_{timestamp}_{mask_used}.jpg"
         filepath = os.path.join('uploads', filename)
         
         # Ensure uploads directory exists

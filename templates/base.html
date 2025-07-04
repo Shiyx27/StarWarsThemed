@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    
+    <!-- Title and Meta -->
+    <title>{% block title %}Star Wars Sith Photobooth{% endblock %}</title>
+    <meta name="description" content="Star Wars themed photobooth with real-time mask overlays and face detection">
+    <meta name="keywords" content="star wars, photobooth, masks, darth vader, sith, face detection">
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Sith Photobooth">
+    
+    <!-- Icons -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/apple-touch-icon.png') }}">
+    
+    <!-- Preconnect for Performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="dns-prefetch" href="//fonts.googleapis.com">
+    <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <!-- Block for additional CSS -->
+    {% block additional_css %}{% endblock %}
+    
+    <!-- MediaPipe Face Detection (Optional) -->
+    {% if config.ENABLE_FACE_DETECTION %}
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.js" crossorigin="anonymous"></script>
+    {% endif %}
+    
+    <!-- Performance and SEO -->
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow">
+    <link rel="canonical" href="{{ request.url }}">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ request.url }}">
+    <meta property="og:title" content="{% block og_title %}Star Wars Sith Photobooth{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}Create amazing Star Wars photos with real-time Sith mask overlays{% endblock %}">
+    <meta property="og:image" content="{{ url_for('static', filename='images/og-image.jpg', _external=True) }}">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="{{ request.url }}">
+    <meta property="twitter:title" content="{% block twitter_title %}Star Wars Sith Photobooth{% endblock %}">
+    <meta property="twitter:description" content="{% block twitter_description %}Create amazing Star Wars photos with real-time Sith mask overlays{% endblock %}">
+    <meta property="twitter:image" content="{{ url_for('static', filename='images/twitter-image.jpg', _external=True) }}">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen active">
+        <div class="loading-content">
+            <div class="death-star-loader">
+                <div class="death-star"></div>
+                <div class="laser-beam"></div>
+            </div>
+            <h2 class="loading-text">{% block loading_text %}Accessing Imperial Database...{% endblock %}</h2>
+            <div class="loading-bar">
+                <div class="loading-progress"></div>
+            </div>
+            <p class="loading-subtitle">{% block loading_subtitle %}Initializing Sith Protocol{% endblock %}</p>
+        </div>
+    </div>
+
+    <!-- Skip to main content for accessibility -->
+    <a href="#main-content" class="skip-to-content">Skip to main content</a>
+
+    <!-- Header -->
+    <header class="header" role="banner">
+        <div class="header-content">
+            <div class="imperial-logo">
+                <svg viewBox="0 0 24 24" class="imperial-symbol" aria-label="Imperial Symbol">
+                    <path d="M12 2l3.09 6.26L22 9l-5.91 1.74L18 17l-6-3.27L6 17l1.91-6.26L2 9l6.91-0.74L12 2z"/>
+                </svg>
+            </div>
+            <h1 class="app-title">
+                <span class="sith-text">SITH</span>
+                <span class="photobooth-text">PHOTOBOOTH</span>
+            </h1>
+            <div class="header-controls">
+                <button id="audio-toggle" class="btn btn--icon" title="Toggle Audio" aria-label="Toggle Audio">
+                    <span class="audio-icon" aria-hidden="true">🔊</span>
+                </button>
+                <button id="gallery-btn" class="btn btn--icon" title="View Gallery" aria-label="View Photo Gallery">
+                    <span class="gallery-icon" aria-hidden="true">🖼️</span>
+                </button>
+                {% block header_controls %}{% endblock %}
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main id="main-content" class="main-content" role="main">
+        {% block content %}
+        <!-- Page content will be inserted here -->
+        {% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+        {% block footer %}
+        <div class="footer-content">
+            <p class="footer-text">
+                &copy; 2024 Sith Photobooth. May the Force be with you.
+            </p>
+            <div class="footer-links">
+                <a href="#" class="footer-link">Privacy Policy</a>
+                <a href="#" class="footer-link">Terms of Service</a>
+                <a href="#" class="footer-link">Contact</a>
+            </div>
+        </div>
+        {% endblock %}
+    </footer>
+
+    <!-- Global Modals -->
+    {% block modals %}
+    <!-- Audio Controls Panel -->
+    <div class="audio-controls" id="audio-controls" role="dialog" aria-labelledby="audio-title" aria-hidden="true">
+        <div class="audio-panel">
+            <h4 id="audio-title">Imperial Sound Control</h4>
+            <div class="audio-options">
+                <button class="audio-btn" data-sound="imperial-march" aria-label="Play Imperial March">
+                    <span aria-hidden="true">🎵</span> Imperial March
+                </button>
+                <button class="audio-btn" data-sound="lightsaber-on" aria-label="Play Lightsaber Sound">
+                    <span aria-hidden="true">🗡️</span> Lightsaber
+                </button>
+                <button class="audio-btn" data-sound="vader-breathing" aria-label="Play Vader Breathing">
+                    <span aria-hidden="true">🫁</span> Vader Breathing
+                </button>
+                <button class="audio-btn" data-sound="tie-fighter" aria-label="Play TIE Fighter Sound">
+                    <span aria-hidden="true">🚀</span> TIE Fighter
+                </button>
+            </div>
+            <div class="volume-control">
+                <label for="volume-slider">Volume</label>
+                <input type="range" id="volume-slider" min="0" max="100" value="50" aria-label="Audio Volume">
+            </div>
+            <button class="btn btn--secondary audio-close" onclick="closeAudioPanel()" aria-label="Close Audio Panel">
+                Close
+            </button>
+        </div>
+    </div>
+
+    <!-- Gallery Modal -->
+    <div id="gallery-modal" class="modal" role="dialog" aria-labelledby="gallery-title" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="gallery-title">Imperial Photo Archive</h3>
+                <button class="btn btn--close" onclick="closeGallery()" aria-label="Close Gallery">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="gallery-grid" class="gallery-grid" role="grid">
+                    <!-- Photos will be loaded dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notification-container" class="notification-container" role="status" aria-live="polite"></div>
+    {% endblock %}
+
+    <!-- Help Panel -->
+    <div id="help-panel" class="help-panel" role="dialog" aria-labelledby="help-title" aria-hidden="true">
+        <div class="help-content">
+            <h3 id="help-title">Mask Controls</h3>
+            <div class="help-controls">
+                <div class="help-section">
+                    <h4>Mask Selection</h4>
+                    <ul>
+                        <li><kbd>1-7</kbd> - Select mask by number</li>
+                        <li><kbd>0</kbd> - Remove mask</li>
+                    </ul>
+                </div>
+                <div class="help-section">
+                    <h4>Mask Positioning</h4>
+                    <ul>
+                        <li><kbd>↑↓←→</kbd> - Move mask</li>
+                        <li><kbd>Shift + ↑↓←→</kbd> - Move faster</li>
+                        <li><kbd>+/-</kbd> - Scale mask</li>
+                        <li><kbd>R</kbd> - Reset position</li>
+                        <li><kbd>M</kbd> - Toggle auto-positioning</li>
+                    </ul>
+                </div>
+                <div class="help-section">
+                    <h4>General</h4>
+                    <ul>
+                        <li><kbd>Space</kbd> or <kbd>Enter</kbd> - Capture photo</li>
+                        <li><kbd>Esc</kbd> - Close dialogs</li>
+                    </ul>
+                </div>
+            </div>
+            <button class="btn btn--secondary" onclick="closeHelp()">Close</button>
+        </div>
+    </div>
+
+    <!-- Audio Elements -->
+    <audio id="background-audio" loop preload="none">
+        <source src="{{ url_for('static', filename='audio/imperial-march.wav') }}" type="audio/wav">
+        <source src="{{ url_for('static', filename='audio/imperial-march.mp3') }}" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+
+    <!-- Core JavaScript Files -->
+    {% block core_scripts %}
+    <script src="{{ url_for('static', filename='js/faceDetection.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/camera.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/maskManager.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/audio.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% endblock %}
+
+    <!-- Additional JavaScript -->
+    {% block additional_js %}{% endblock %}
+
+    <!-- Global Helper Functions -->
+    <script>
+        // Global utility functions
+        function closeAudioPanel() {
+            const audioControls = document.getElementById('audio-controls');
+            if (audioControls) {
+                audioControls.classList.remove('open');
+                audioControls.setAttribute('aria-hidden', 'true');
+            }
+        }
+
+        function closeGallery() {
+            const galleryModal = document.getElementById('gallery-modal');
+            if (galleryModal) {
+                galleryModal.classList.remove('open');
+                galleryModal.setAttribute('aria-hidden', 'true');
+            }
+        }
+
+        function closeHelp() {
+            const helpPanel = document.getElementById('help-panel');
+            if (helpPanel) {
+                helpPanel.classList.remove('open');
+                helpPanel.setAttribute('aria-hidden', 'true');
+            }
+        }
+
+        function downloadPhoto(filename) {
+            window.open(`/api/download/${filename}`, '_blank');
+        }
+
+        // Show help panel
+        function showHelp() {
+            const helpPanel = document.getElementById('help-panel');
+            if (helpPanel) {
+                helpPanel.classList.add('open');
+                helpPanel.setAttribute('aria-hidden', 'false');
+            }
+        }
+
+        // Keyboard shortcut for help
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'F1' || (e.key === '?' && !e.target.matches('input, textarea'))) {
+                e.preventDefault();
+                showHelp();
+            }
+        });
+
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js')
+                    .then(registration => {
+                        console.log('SW registered: ', registration);
+                    })
+                    .catch(registrationError => {
+                        console.log('SW registration failed: ', registrationError);
+                    });
+            });
+        }
+
+        // Global error handler
+        window.addEventListener('error', function(e) {
+            console.error('Global error:', e.error);
+            
+            if (window.showNotification) {
+                window.showNotification('An error occurred. Please refresh the page.', 'error');
+            }
+        });
+
+        // Performance monitoring
+        window.addEventListener('load', function() {
+            const perfData = performance.getEntriesByType('navigation')[0];
+            console.log('Page load time:', perfData.loadEventEnd - perfData.loadEventStart, 'ms');
+        });
+    </script>
+
+    <!-- Analytics (Optional) -->
+    {% if config.ANALYTICS_ID %}
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ config.ANALYTICS_ID }}"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', '{{ config.ANALYTICS_ID }}');
+    </script>
+    {% endif %}
+</body>
+</html>

@@ -17,6 +17,9 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <!-- MediaPipe Face Detection (Optional) -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <!-- Loading Screen -->
@@ -26,11 +29,11 @@
                 <div class="death-star"></div>
                 <div class="laser-beam"></div>
             </div>
-            <h2 class="loading-text">Accessing Imperial Database...</h2>
+            <h2 class="loading-text">Initializing Mask System...</h2>
             <div class="loading-bar">
                 <div class="loading-progress"></div>
             </div>
-            <p class="loading-subtitle">Initializing Sith Protocol</p>
+            <p class="loading-subtitle">Loading Star Wars Masks</p>
         </div>
     </div>
 
@@ -67,8 +70,10 @@
                     <!-- Video Element -->
                     <video id="camera-video" autoplay playsinline muted></video>
                     
-                    <!-- Canvas for Processing -->
-                    <canvas id="camera-canvas"></canvas>
+                    <!-- Hidden Canvas for Processing -->
+                    <canvas id="camera-canvas" style="display: none;"></canvas>
+                    
+                    <!-- Output Canvas with Mask Overlay will be inserted here by JavaScript -->
                     
                     <!-- Camera Overlay -->
                     <div class="camera-overlay">
@@ -84,7 +89,7 @@
                         <!-- Status Display -->
                         <div class="status-display">
                             <div class="status-item">
-                                <span class="status-label">Target Acquired</span>
+                                <span class="status-label">Face Detected</span>
                                 <span class="status-value" id="face-detected">No</span>
                             </div>
                             <div class="status-item">
@@ -92,13 +97,22 @@
                                 <span class="status-value" id="dark-side-level">0%</span>
                             </div>
                         </div>
+                        
+                        <!-- Mask Controls -->
+                        <div class="mask-controls">
+                            <div class="control-hint">
+                                <p>Use arrow keys to adjust mask position</p>
+                                <p>Press +/- to resize mask</p>
+                                <p>Press M to toggle auto-positioning</p>
+                            </div>
+                        </div>
                     </div>
                     
                     <!-- Camera Error -->
                     <div id="camera-error" class="camera-error" style="display: none;">
                         <div class="error-content">
-                            <h3>Camera Access Denied</h3>
-                            <p>The Emperor requires access to your imaging systems.</p>
+                            <h3>Camera Access Required</h3>
+                            <p>The Dark Side requires access to your imaging systems.</p>
                             <button class="btn btn--primary" onclick="requestCameraPermission()">
                                 Grant Access to the Empire
                             </button>
@@ -109,11 +123,11 @@
 
             <!-- Controls Panel -->
             <section class="controls-section">
-                <!-- Filter Selection -->
+                <!-- Mask Selection -->
                 <div class="filter-panel">
-                    <h3 class="panel-title">Choose Your Destiny</h3>
+                    <h3 class="panel-title">Choose Your Mask</h3>
                     <div class="filter-grid" id="filter-grid">
-                        <!-- Filters will be loaded dynamically -->
+                        <!-- Masks will be loaded dynamically -->
                     </div>
                 </div>
 
@@ -122,13 +136,13 @@
                     <div class="capture-controls">
                         <button id="capture-btn" class="btn btn--capture" disabled>
                             <span class="lightsaber-icon">🗡️</span>
-                            <span class="btn-text">Capture the Dark Side</span>
+                            <span class="btn-text">Capture with Mask</span>
                             <div class="lightsaber-glow"></div>
                         </button>
                         
                         <div class="secondary-controls">
-                            <button id="filter-toggle" class="btn btn--secondary">
-                                <span>Toggle Filter</span>
+                            <button id="mask-toggle" class="btn btn--secondary">
+                                <span>Remove Mask</span>
                             </button>
                             <button id="switch-camera" class="btn btn--secondary">
                                 <span>Switch Camera</span>
@@ -139,7 +153,8 @@
             </section>
         </main>
 
-        <!-- Audio Controls -->
+        <!-- Same modals and notification system as before -->
+        <!-- Audio Controls, Gallery Modal, Notification Container -->
         <div class="audio-controls" id="audio-controls">
             <div class="audio-panel">
                 <h4>Imperial Sound Control</h4>
@@ -185,12 +200,13 @@
 
     <!-- Audio Elements -->
     <audio id="background-audio" loop>
-        <source src="{{ url_for('static', filename='audio/imperial-march.mp3') }}" type="audio/mpeg">
+        <source src="{{ url_for('static', filename='audio/imperial-march.wav') }}" type="audio/wav">
     </audio>
 
     <!-- Scripts -->
     <script src="{{ url_for('static', filename='js/camera.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/filters.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/faceDetection.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/maskManager.js') }}"></script>
     <script src="{{ url_for('static', filename='js/audio.js') }}"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>

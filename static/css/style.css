@@ -1029,3 +1029,62 @@ body::before {
         box-shadow: none;
     }
 }
+/* CSS Filter Classes as Fallback */
+.filter-sith-lord {
+    filter: contrast(1.4) brightness(0.6) saturate(0.5) hue-rotate(350deg) sepia(0.3) !important;
+    -webkit-filter: contrast(1.4) brightness(0.6) saturate(0.5) hue-rotate(350deg) sepia(0.3) !important;
+}
+
+.filter-vader-mask {
+    filter: contrast(1.8) brightness(0.4) grayscale(0.5) sepia(0.4) !important;
+    -webkit-filter: contrast(1.8) brightness(0.4) grayscale(0.5) sepia(0.4) !important;
+}
+
+.filter-sith-eyes {
+    filter: contrast(1.5) brightness(0.7) saturate(1.4) hue-rotate(340deg) sepia(0.2) !important;
+    -webkit-filter: contrast(1.5) brightness(0.7) saturate(1.4) hue-rotate(340deg) sepia(0.2) !important;
+}
+
+.filter-dark-corruption {
+    filter: contrast(1.6) brightness(0.5) saturate(0.3) sepia(0.5) hue-rotate(280deg) !important;
+    -webkit-filter: contrast(1.6) brightness(0.5) saturate(0.3) sepia(0.5) hue-rotate(280deg) !important;
+}
+
+.filter-imperial-officer {
+    filter: contrast(1.3) brightness(0.85) saturate(0.6) sepia(0.2) !important;
+    -webkit-filter: contrast(1.3) brightness(0.85) saturate(0.6) sepia(0.2) !important;
+}
+
+.filter-lightsaber-duel {
+    filter: contrast(1.5) brightness(1.3) saturate(1.5) hue-rotate(15deg) drop-shadow(0 0 15px red) !important;
+    -webkit-filter: contrast(1.5) brightness(1.3) saturate(1.5) hue-rotate(15deg) drop-shadow(0 0 15px red) !important;
+}
+
+/* Enhanced Filter Card Animations */
+.filter-card.active {
+    transform: scale(1.05);
+    box-shadow: 0 0 30px var(--color-sith-red-glow);
+    border-color: var(--color-sith-red);
+    background: rgba(255, 0, 0, 0.15);
+}
+
+.filter-card:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 5px 25px var(--color-sith-red-glow);
+}
+
+/* Video Element Enhancements */
+#camera-video {
+    transition: filter 0.4s ease, -webkit-filter 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease;
+    border: 2px solid transparent;
+    border-radius: var(--radius-lg);
+}
+
+/* Dark Side Level Indicator Enhancement */
+#dark-side-level {
+    font-weight: bold;
+    transition: color 0.3s ease, text-shadow 0.3s ease;
+    font-size: 1.1rem;
+}
+
+

@@ -1,6 +1,5 @@
 /**
- * FIXED Camera Management with Complete Error Handling
- * Addresses HTTPS, permissions, and initialization issues
+ * Enhanced Camera Manager with Better Canvas Coordination
  */
 
 class CameraManager {
@@ -9,45 +8,19 @@ class CameraManager {
         this.canvas = null;
         this.context = null;
         this.stream = null;
-        this.devices = [];
-        this.currentDeviceId = null;
         this.isInitialized = false;
         this.facingMode = 'user';
-        this.isHTTPS = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
         
-        // Progressive constraint fallbacks
-        this.constraintStrategies = [
-            {
-                name: 'High Quality',
-                constraints: {
-                    video: {
-                        width: { ideal: 1280, min: 640 },
-                        height: { ideal: 720, min: 480 },
-                        facingMode: 'user',
-                        frameRate: { ideal: 30 }
-                    },
-                    audio: false
-                }
-            },
-            {
-                name: 'Medium Quality',
-                constraints: {
-                    video: {
-                        width: { ideal: 640 },
-                        height: { ideal: 480 },
-                        facingMode: 'user'
-                    },
-                    audio: false
-                }
-            },
-            {
-                name: 'Basic',
-                constraints: {
-                    video: true,
-                    audio: false
-                }
-            }
-        ];
+        // Canvas-specific properties
+        this.outputCanvas = null;
+        this.outputContext = null;
+        this.animationFrame = null;
+        this.isRendering = false;
+        
+        // Performance optimization
+        this.frameRate = 30;
+        this.frameInterval = 1000 / this.frameRate;
+        this.lastFrameTime = 0;
         
         this.initializeElements();
         this.bindEvents();
@@ -55,25 +28,22 @@ class CameraManager {
     }
     
     checkEnvironment() {
-        console.log('Environment Check:', {
-            protocol: location.protocol,
-            hostname: location.hostname,
-            isHTTPS: this.isHTTPS,
-            mediaDevicesSupported: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
-        });
+        const isHTTPS = location.protocol === 'https:' || 
+                       location.hostname === 'localhost' || 
+                       location.hostname === '127.0.0.1';
         
-        if (!this.isHTTPS) {
+        if (!isHTTPS) {
             this.showError(
-                'HTTPS Required for Camera Access',
-                'Please access the app via https:// or use localhost instead of 127.0.0.1'
+                'HTTPS Required',
+                'Camera access requires HTTPS. Please use localhost or deploy with SSL.'
             );
             return false;
         }
         
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        if (!navigator.mediaDevices?.getUserMedia) {
             this.showError(
                 'Browser Not Supported',
-                'Your browser does not support camera access. Please use Chrome, Firefox, Safari, or Edge.'
+                'Your browser does not support camera access.'
             );
             return false;
         }
@@ -86,22 +56,34 @@ class CameraManager {
         this.canvas = document.getElementById('camera-canvas');
         this.errorElement = document.getElementById('camera-error');
         
+        // Create output canvas for mask overlay
+        this.outputCanvas = document.createElement('canvas');
+        this.outputCanvas.id = 'output-canvas';
+        this.outputCanvas.style.position = 'absolute';
+        this.outputCanvas.style.top = '0';
+        this.outputCanvas.style.left = '0';
+        this.outputCanvas.style.zIndex = '2';
+        this.outputCanvas.style.pointerEvents = 'none'; // Allow clicks to pass through
+        
         if (this.canvas) {
             this.context = this.canvas.getContext('2d');
+            this.outputContext = this.outputCanvas.getContext('2d');
+            
+            // Insert output canvas into DOM
+            const cameraContainer = document.querySelector('.camera-container');
+            if (cameraContainer) {
+                cameraContainer.appendChild(this.outputCanvas);
+            }
         }
         
-        console.log('Camera elements initialized:', {
-            video: !!this.video,
-            canvas: !!this.canvas,
-            error: !!this.errorElement
-        });
+        console.log('Camera elements initialized');
     }
     
     bindEvents() {
         if (this.video) {
             this.video.addEventListener('loadedmetadata', () => {
-                console.log('Video metadata loaded');
                 this.setupCanvas();
+                this.startRendering();
                 this.updateStatus('Camera Active', true);
                 this.hideError();
                 this.enableCaptureButton();
@@ -120,72 +102,41 @@ class CameraManager {
     }
     
     async initialize() {
-        if (this.isInitialized) {
-            return true;
-        }
+        if (this.isInitialized) return true;
         
         try {
-            console.log('Starting camera initialization...');
+            if (!this.checkEnvironment()) return false;
             
-            if (!this.checkEnvironment()) {
-                return false;
-            }
+            const constraints = {
+                video: {
+                    width: { ideal: 1280, min: 640 },
+                    height: { ideal: 720, min: 480 },
+                    facingMode: this.facingMode,
+                    frameRate: { ideal: 30 }
+                },
+                audio: false
+            };
             
-            // Try progressive fallback strategy
-            for (let i = 0; i < this.constraintStrategies.length; i++) {
-                const strategy = this.constraintStrategies[i];
-                console.log(`Trying ${strategy.name} strategy...`);
+            this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+            this.video.srcObject = this.stream;
+            
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('Video load timeout')), 10000);
                 
-                try {
-                    this.showPermissionRequest(`Requesting camera access (${strategy.name})...`);
-                    
-                    // Stop existing stream
-                    if (this.stream) {
-                        this.stream.getTracks().forEach(track => track.stop());
+                this.video.onloadedmetadata = async () => {
+                    clearTimeout(timeout);
+                    try {
+                        await this.video.play();
+                        resolve();
+                    } catch (playError) {
+                        reject(playError);
                     }
-                    
-                    // Get new stream
-                    this.stream = await navigator.mediaDevices.getUserMedia(strategy.constraints);
-                    
-                    // Set video source
-                    this.video.srcObject = this.stream;
-                    
-                    // Wait for video to load and play
-                    await new Promise((resolve, reject) => {
-                        const timeout = setTimeout(() => reject(new Error('Video load timeout')), 10000);
-                        
-                        this.video.onloadedmetadata = async () => {
-                            clearTimeout(timeout);
-                            try {
-                                await this.video.play();
-                                resolve();
-                            } catch (playError) {
-                                reject(playError);
-                            }
-                        };
-                        
-                        this.video.onerror = (e) => {
-                            clearTimeout(timeout);
-                            reject(new Error('Video load error'));
-                        };
-                    });
-                    
-                    console.log(`Camera started successfully with ${strategy.name}`);
-                    this.isInitialized = true;
-                    this.hidePermissionRequest();
-                    return true;
-                    
-                } catch (error) {
-                    console.warn(`${strategy.name} failed:`, error);
-                    
-                    if (i === this.constraintStrategies.length - 1) {
-                        // Last strategy failed
-                        this.hidePermissionRequest();
-                        this.handleCameraError(error);
-                        return false;
-                    }
-                }
-            }
+                };
+            });
+            
+            this.isInitialized = true;
+            console.log('Camera initialized successfully');
+            return true;
             
         } catch (error) {
             console.error('Camera initialization failed:', error);
@@ -194,6 +145,117 @@ class CameraManager {
         }
     }
     
+    setupCanvas() {
+        if (!this.canvas || !this.video || !this.outputCanvas) return;
+        
+        // Set canvas dimensions
+        const width = this.video.videoWidth;
+        const height = this.video.videoHeight;
+        
+        this.canvas.width = this.outputCanvas.width = width;
+        this.canvas.height = this.outputCanvas.height = height;
+        
+        // Set CSS dimensions for responsive display
+        const containerWidth = this.video.clientWidth;
+        const aspectRatio = height / width;
+        const containerHeight = containerWidth * aspectRatio;
+        
+        this.canvas.style.width = this.outputCanvas.style.width = containerWidth + 'px';
+        this.canvas.style.height = this.outputCanvas.style.height = containerHeight + 'px';
+        
+        // Update mask manager with canvas dimensions
+        if (window.maskManager) {
+            window.maskManager.updateCanvasDimensions(width, height);
+        }
+        
+        console.log(`Canvas setup complete: ${width}x${height} -> ${containerWidth}x${containerHeight}`);
+    }
+    
+    startRendering() {
+        if (this.isRendering) return;
+        
+        this.isRendering = true;
+        this.renderLoop();
+        console.log('Started canvas rendering loop');
+    }
+    
+    renderLoop(currentTime = 0) {
+        if (!this.isRendering) return;
+        
+        // Frame rate limiting
+        if (currentTime - this.lastFrameTime >= this.frameInterval) {
+            this.renderFrame();
+            this.lastFrameTime = currentTime;
+        }
+        
+        this.animationFrame = requestAnimationFrame((time) => this.renderLoop(time));
+    }
+    
+    renderFrame() {
+        if (!this.video || !this.outputContext || this.video.readyState < 2) return;
+        
+        try {
+            // Clear output canvas
+            this.outputContext.clearRect(0, 0, this.outputCanvas.width, this.outputCanvas.height);
+            
+            // Draw video frame
+            this.outputContext.drawImage(
+                this.video, 
+                0, 0, 
+                this.outputCanvas.width, 
+                this.outputCanvas.height
+            );
+            
+            // Apply mask overlay if active
+            if (window.maskManager && window.maskManager.activeMask) {
+                window.maskManager.applyMaskToCanvas(this.outputContext, this.outputCanvas);
+            }
+            
+        } catch (error) {
+            console.error('Error rendering frame:', error);
+        }
+    }
+    
+    capturePhoto() {
+        if (!this.outputCanvas || !this.isInitialized) {
+            console.error('Camera not ready for capture');
+            return null;
+        }
+        
+        try {
+            // Capture from output canvas (includes mask overlay)
+            const imageData = this.outputCanvas.toDataURL('image/jpeg', 0.9);
+            
+            // Play capture sound
+            if (window.audioManager) {
+                window.audioManager.playSound('camera-shutter');
+            }
+            
+            console.log('Photo captured with mask overlay');
+            return imageData;
+            
+        } catch (error) {
+            console.error('Error capturing photo:', error);
+            return null;
+        }
+    }
+    
+    // Handle window resize for responsive canvas
+    handleResize() {
+        if (this.video && this.video.videoWidth > 0) {
+            this.setupCanvas();
+        }
+    }
+    
+    stopRendering() {
+        this.isRendering = false;
+        if (this.animationFrame) {
+            cancelAnimationFrame(this.animationFrame);
+            this.animationFrame = null;
+        }
+    }
+    
+    // Error handling methods (same as before)
     handleCameraError(error) {
         let errorMessage = 'Camera access failed';
         let instructions = '';
@@ -205,99 +267,21 @@ class CameraManager {
                 break;
             case 'NotAllowedError':
                 errorMessage = 'Camera access blocked';
-                instructions = 'Please allow camera access in your browser settings and refresh the page.';
+                instructions = 'Please allow camera access and refresh the page.';
                 break;
             case 'NotReadableError':
                 errorMessage = 'Camera is busy';
-                instructions = 'Close other applications using the camera (Zoom, Skype, etc.) and try again.';
+                instructions = 'Close other apps using the camera and try again.';
                 break;
             case 'SecurityError':
                 errorMessage = 'Security restriction';
-                instructions = 'Try accessing via https:// or use localhost instead of 127.0.0.1';
+                instructions = 'Try accessing via https:// or localhost.';
                 break;
             default:
-                errorMessage = 'Camera access failed';
                 instructions = 'Please check your browser settings and try again.';
         }
         
         this.showError(errorMessage, instructions);
-    }
-    
-    setupCanvas() {
-        if (!this.canvas || !this.video) return;
-        
-        this.canvas.width = this.video.videoWidth;
-        this.canvas.height = this.video.videoHeight;
-        
-        const containerWidth = this.video.clientWidth;
-        const aspectRatio = this.video.videoHeight / this.video.videoWidth;
-        const containerHeight = containerWidth * aspectRatio;
-        
-        this.canvas.style.width = containerWidth + 'px';
-        this.canvas.style.height = containerHeight + 'px';
-        
-        console.log('Canvas setup complete');
-    }
-    
-    capturePhoto() {
-        if (!this.context || !this.video || !this.isInitialized) {
-            console.error('Camera not ready for capture');
-            return null;
-        }
-        
-        try {
-            this.canvas.width = this.video.videoWidth;
-            this.canvas.height = this.video.videoHeight;
-            this.context.drawImage(this.video, 0, 0);
-            
-            const imageData = this.canvas.toDataURL('image/jpeg', 0.9);
-            console.log('Photo captured successfully');
-            
-            // Play capture sound
-            if (window.audioManager) {
-                window.audioManager.playSound('camera-shutter');
-            }
-            
-            return imageData;
-            
-        } catch (error) {
-            console.error('Error capturing photo:', error);
-            return null;
-        }
-    }
-    
-    applyFilter(filterName) {
-        if (!this.video) return;
-        
-        const filters = {
-            'sith-lord': 'contrast(1.2) brightness(0.8) hue-rotate(350deg) saturate(0.7)',
-            'vader-mask': 'contrast(1.5) brightness(0.6) grayscale(0.3)',
-            'sith-eyes': 'contrast(1.3) brightness(0.9) hue-rotate(340deg)',
-            'dark-corruption': 'contrast(1.4) brightness(0.7) saturate(0.5) sepia(0.3)',
-            'imperial-officer': 'contrast(1.1) brightness(0.95) saturate(0.8)',
-            'lightsaber-duel': 'contrast(1.3) brightness(1.1) saturate(1.2) hue-rotate(15deg)'
-        };
-        
-        const filter = filters[filterName];
-        if (filter) {
-            this.video.style.filter = filter;
-            console.log(`Applied filter: ${filterName}`);
-        }
-    }
-    
-    removeFilter() {
-        if (this.video) {
-            this.video.style.filter = 'none';
-        }
-    }
-    
-    // UI Helper Methods
-    showPermissionRequest(message = 'Requesting camera access...') {
-        this.showError(message, 'Please allow camera access when prompted by your browser.');
-    }
-    
-    hidePermissionRequest() {
-        this.hideError();
     }
     
     showError(message, instructions = '') {
@@ -344,11 +328,6 @@ class CameraManager {
         const captureBtn = document.getElementById('capture-btn');
         if (captureBtn) {
             captureBtn.disabled = false;
-            captureBtn.innerHTML = `
-                <span class="lightsaber-icon">🗡️</span>
-                <span class="btn-text">Capture the Dark Side</span>
-                <div class="lightsaber-glow"></div>
-            `;
         }
     }
     
@@ -367,46 +346,39 @@ class CameraManager {
         }
     }
     
-    async switchCamera() {
-        if (this.devices.length < 2) {
-            console.log('Only one camera available');
-            return;
+    destroy() {
+        this.stopRendering();
+        
+        if (this.stream) {
+            this.stream.getTracks().forEach(track => track.stop());
         }
         
-        try {
-            const currentIndex = this.devices.findIndex(device => device.deviceId === this.currentDeviceId);
-            const nextIndex = (currentIndex + 1) % this.devices.length;
-            this.currentDeviceId = this.devices[nextIndex].deviceId;
-            
-            await this.initialize();
-        } catch (error) {
-            console.error('Error switching camera:', error);
+        if (this.video) {
+            this.video.srcObject = null;
         }
+        
+        this.isInitialized = false;
     }
 }
 
-// Initialize when DOM is ready
+// Handle window resize
+window.addEventListener('resize', () => {
+    if (window.cameraManager) {
+        setTimeout(() => {
+            window.cameraManager.handleResize();
+        }, 100);
+    }
+});
+
+// Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Initializing camera manager...');
     window.cameraManager = new CameraManager();
     
-    // Auto-initialize camera after a short delay
+    // Auto-initialize after delay
     setTimeout(() => {
         if (window.cameraManager) {
             window.cameraManager.initialize();
         }
     }, 1000);
 });
-
-// Global helper functions
-window.requestCameraPermission = async () => {
-    if (window.cameraManager) {
-        await window.cameraManager.initialize();
-    }
-};
-
-window.initializeCamera = async () => {
-    if (window.cameraManager) {
-        await window.cameraManager.initialize();
-    }
-};
