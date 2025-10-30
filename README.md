@@ -94,6 +94,48 @@ We've built a **complete web-based photobooth platform** that:
 ### **✅ 🛸 Challenge 2: Include a Star Wars Easter Egg 🛸 - included a lotttt**
 ### **✅ 🌀 Challenge 4: Bring Your World into 3D 🌀**
 
+## 🚀 Deployment
+
+This project is ready for deployment on Vercel and can be pushed to GitHub.
+
+### GitHub
+To push this project to your GitHub repository, follow these steps:
+
+1.  **Initialize Git (if you haven't already):**
+    ```bash
+    git init
+    git add .
+    git commit -m "Initial commit: Star Wars Photobooth"
+    ```
+
+2.  **Create a new repository on GitHub.**
+
+3.  **Link your local repository to the remote one and push:**
+    ```bash
+    git remote add origin <YOUR_GITHUB_REPO_URL>
+    git branch -M main
+    git push -u origin main
+    ```
+
+### Vercel
+This project includes a `vercel.json` file, which allows for seamless deployment.
+
+1.  **Sign up for a Vercel account and install the Vercel CLI:**
+    ```bash
+    npm install -g vercel
+    ```
+
+2.  **Login to your Vercel account:**
+    ```bash
+    vercel login
+    ```
+
+3.  **Deploy the application from your project's root directory:**
+    ```bash
+    vercel --prod
+    ```
+
+Vercel will automatically detect the Python (Flask) backend and the static frontend, build the project, and deploy it.
 
 ### **📱 Try it Now!**
 

@@ -50,10 +50,11 @@ class MaskManager {
                 await this.faceDetection.initialize();
             }
             
+            this.renderAdjustmentControls(); // MUST be rendered before mask selector, which calls selectMask
             this.renderMaskSelector();
-            this.renderAdjustmentControls();
             this.bindEvents();
             this.bindWizardEvents();
+            this.bindMouseWheelEvents();
             
             console.log('Mask Manager initialized successfully');
             
@@ -994,30 +995,79 @@ class MaskManager {
     }
     
     updateDarkSideLevel(maskId) {
-        const darkSideLevels = {
-            'none': '0%',
-            'jedi': '10%',
-            'storm-trooper': '30%',
-            'kylo-ren': '60%',
-            'sith-lord': '80%',
-            'emperor': '90%',
-            'vader-mask': '100%'
-        };
+        let level = 0;
+        if (maskId && maskId !== 'none') {
+            const darkSideMasks = ['vader-mask', 'sith-lord', 'storm-trooper', 'emperor', 'kylo-ren'];
+            if (darkSideMasks.includes(maskId)) {
+                level = 50 + Math.floor(Math.random() * 50);
+            } else {
+                level = 10 + Math.floor(Math.random() * 20); // For non-dark side masks
+            }
+        }
         
-        const levelElement = document.getElementById('dark-side-level');
-        if (levelElement) {
-            const level = darkSideLevels[maskId] || '0%';
-            levelElement.textContent = level;
-            levelElement.style.color = maskId === 'none' ? '#00ff00' : '#ff0000';
+        const levelDisplay = document.getElementById('dark-side-level');
+        if (levelDisplay) {
+            levelDisplay.textContent = `${level}%`;
         }
     }
 
+    bindMouseWheelEvents() {
+        const filterGrid = document.getElementById('filter-grid');
+        const cameraContainer = document.querySelector('.camera-container');
+
+        if (filterGrid) {
+            filterGrid.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                this.cycleMasks(e.deltaY > 0 ? 1 : -1);
+            }, { passive: false });
+        }
+
+        if (cameraContainer) {
+            cameraContainer.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                this.adjustMaskSize(e.deltaY > 0 ? -0.05 : 0.05);
+            }, { passive: false });
+        }
+    }
+
+    cycleMasks(direction) {
+        if (!this.masks || this.masks.length === 0) return;
+
+        const currentMaskId = this.activeMask ? this.activeMask.id : this.masks[0].id;
+        let currentIndex = this.masks.findIndex(m => m.id === currentMaskId);
+
+        currentIndex += direction;
+
+        if (currentIndex >= this.masks.length) {
+            currentIndex = 0; // Wrap to start
+        } else if (currentIndex < 0) {
+            currentIndex = this.masks.length - 1; // Wrap to end
+        }
+
+        const nextMask = this.masks[currentIndex];
+        if (nextMask) {
+            this.selectMask(nextMask);
+        }
+    }
+
+    adjustMaskSize(amount) {
+        if (!this.activeMask) return;
+
+        let currentScale = parseFloat(this.baseMaskScale);
+        currentScale += amount;
+        
+        // Clamp the scale
+        this.baseMaskScale = Math.max(this.maskScaleRange.min, Math.min(this.maskScaleRange.max, currentScale));
+
+        this.updateAdjustmentControls(this.activeMask.id);
+    }
+
     renderAdjustmentControls() {
-        const container = document.querySelector('.mask-controls');
-        if (!container) return;
+        const controlsContainer = document.querySelector('.mask-controls');
+        if (!controlsContainer) return;
 
         // Create panel
-        let panel = container.querySelector('.adjustment-panel');
+        let panel = controlsContainer.querySelector('.adjustment-panel');
         if (!panel) {
             panel = document.createElement('div');
             panel.className = 'adjustment-panel';
@@ -1031,7 +1081,7 @@ class MaskManager {
                     <button id="mask-reset-adjust" class="btn btn--small">Reset</button>
                 </div>
             `;
-            container.appendChild(panel);
+            controlsContainer.appendChild(panel);
 
             // Bind events
             panel.querySelector('#mask-scale').addEventListener('input', (e) => {
@@ -1087,14 +1137,14 @@ class MaskManager {
             });
 
             // Face detection hint
-            let hint = container.querySelector('.face-hint');
+            let hint = controlsContainer.querySelector('.face-hint');
             if (!hint) {
                 hint = document.createElement('div');
                 hint.className = 'face-hint';
                 hint.style.marginTop = '8px';
                 hint.style.color = '#ffcccc';
                 hint.textContent = 'Face not detected — please center your face in the camera.';
-                container.appendChild(hint);
+                controlsContainer.appendChild(hint);
             }
 
             panel.querySelector('#mask-reset-adjust').addEventListener('click', () => {
