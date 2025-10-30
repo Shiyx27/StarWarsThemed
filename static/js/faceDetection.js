@@ -43,25 +43,98 @@ class FaceDetection {
     
     async initializeMediaPipe() {
         try {
-            // Check if MediaPipe is available
-            if (typeof FilesetResolver === 'undefined') {
-                console.log('MediaPipe not available, using fallback detection');
+            // Attempt to load the MediaPipe tasks-vision module. The library
+            // may be loaded as a global (UMD) or as an ES module. Try both.
+            let mp = null;
+            if (typeof FilesetResolver !== 'undefined' && typeof FaceDetector !== 'undefined') {
+                // Global (UMD) build exposed FilesetResolver/FaceDetector
+                mp = window;
+            } else {
+                // Try dynamic import of the ES module bundle (this avoids the
+                // "Unexpected token 'export'" error when the script is a module)
+                try {
+                    mp = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.js');
+                } catch (err) {
+                    console.warn('Dynamic import of MediaPipe failed:', err);
+                    return this.initializeFallbackDetection();
+                }
+            }
+
+            const FilesetResolverRef = mp.FilesetResolver;
+            const FaceLandmarkerRef = mp.FaceLandmarker || mp.FaceMesh || mp.FaceDetector;
+
+            if (!FilesetResolverRef || !FaceLandmarkerRef) {
+                console.warn('MediaPipe tasks API not available on this build');
                 return this.initializeFallbackDetection();
             }
-            
-            const vision = await FilesetResolver.forVisionTasks(
-                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+
+            const vision = await FilesetResolverRef.forVisionTasks(
+                'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
             );
-            
-            this.faceDetector = await FaceDetector.createFromOptions(vision, {
-                baseOptions: {
-                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
-                    delegate: "GPU"
-                },
-                runningMode: "VIDEO",
-                minDetectionConfidence: this.confidence
-            });
-            
+
+            // Try creating a FaceDetector first (usually available and smaller).
+            let createdSomething = false;
+            if (mp.FaceDetector && typeof mp.FaceDetector.createFromOptions === 'function') {
+                try {
+                    this.faceDetector = await mp.FaceDetector.createFromOptions(vision, {
+                        baseOptions: {
+                            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
+                            delegate: 'GPU'
+                        },
+                        runningMode: 'VIDEO',
+                        minDetectionConfidence: this.confidence
+                    });
+                    createdSomething = true;
+                } catch (err) {
+                    console.warn('FaceDetector creation failed:', err);
+                }
+            }
+
+            // Then attempt to create FaceLandmarker (landmarks). Make this non-fatal
+            // so if the landmarker model isn't available we still have bounding boxes.
+            if (FaceLandmarkerRef && typeof FaceLandmarkerRef.createFromOptions === 'function') {
+                // Try multiple candidate modelAssetPath locations because CDN paths
+                // sometimes return 404. If none work, print a helpful message and
+                // fall back to the bounding-box detector.
+                const candidateUrls = [
+                    // Prefer a locally-hosted model if present
+                    '/static/models/face_landmarker.task',
+                    'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float32/latest/face_landmarker.task',
+                    'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float32/1/face_landmarker.task',
+                    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm/face_landmarker.task'
+                ];
+
+                let created = false;
+                for (const url of candidateUrls) {
+                    try {
+                        this.faceLandmarker = await FaceLandmarkerRef.createFromOptions(vision, {
+                            baseOptions: { modelAssetPath: url, delegate: 'GPU' },
+                            runningMode: 'VIDEO',
+                            numFaces: 1,
+                            minDetectionConfidence: this.confidence
+                        });
+                        console.log('FaceLandmarker loaded from', url);
+                        createdSomething = true;
+                        created = true;
+                        break;
+                    } catch (err) {
+                        console.warn(`FaceLandmarker load failed for ${url}:`, err && err.message ? err.message : err);
+                        // continue to next candidate
+                    }
+                }
+
+                if (!created) {
+                    console.warn('FaceLandmarker could not be loaded from known CDN locations. Landmarks will be unavailable.');
+                    console.warn('To enable landmark-based placement, host the model file locally at /static/models/face_landmarker.task and change the modelAssetPath in static/js/faceDetection.js to \'/static/models/face_landmarker.task\'.');
+                    console.warn('Alternatively provide a working CDN URL and update the candidateUrls array in static/js/faceDetection.js.');
+                }
+            }
+
+            if (!createdSomething) {
+                console.warn('No MediaPipe face components could be created');
+                return this.initializeFallbackDetection();
+            }
+
             return true;
             
         } catch (error) {
@@ -145,8 +218,62 @@ class FaceDetection {
     
     async detectWithMediaPipe(video) {
         try {
-            const results = this.faceDetector.detectForVideo(video, Date.now());
-            return results.detections || [];
+            // If we have a face landmarker, use it to get landmarks + bounding box
+            if (this.faceLandmarker) {
+                const results = await this.faceLandmarker.detectForVideo(video, Date.now());
+                if (!results) return this.getFallbackFaceDetection();
+
+                // results may contain faceLandmarks and faceRectangles depending on build
+                const landmarks = results.faceLandmarks || results.landmarks || [];
+                const rects = results.faceRectangles || results.detections || [];
+
+                // If we have landmarks, compute bounding box from them
+                if (landmarks && landmarks.length > 0) {
+                    const lm = landmarks[0];
+                    // lm is an array of points {x, y, z} normalized to [0,1]
+                    let minX = 1, minY = 1, maxX = 0, maxY = 0;
+                    for (let p of lm) {
+                        if (p.x < minX) minX = p.x;
+                        if (p.y < minY) minY = p.y;
+                        if (p.x > maxX) maxX = p.x;
+                        if (p.y > maxY) maxY = p.y;
+                    }
+
+                    const box = {
+                        x: minX * this.canvasWidth,
+                        y: minY * this.canvasHeight,
+                        width: (maxX - minX) * this.canvasWidth,
+                        height: (maxY - minY) * this.canvasHeight
+                    };
+
+                    return [{
+                        boundingBox: box,
+                        confidence: 0.95,
+                        landmarks: lm // normalized
+                    }];
+                }
+
+                // Otherwise, try to use rectangle/detections
+                if (rects && rects.length > 0) {
+                    const r = rects[0];
+                    // rect format may vary depending on build - try to normalize
+                    const box = r.boundingBox || r.box || {
+                        x: (r.x || 0) * this.canvasWidth,
+                        y: (r.y || 0) * this.canvasHeight,
+                        width: (r.width || r.w || 0) * this.canvasWidth,
+                        height: (r.height || r.h || 0) * this.canvasHeight
+                    };
+                    return [{ boundingBox: box, confidence: r.score || 0.9 }];
+                }
+            }
+
+            // Fallback to older faceDetector API if present
+            if (this.faceDetector) {
+                const results = await this.faceDetector.detectForVideo(video, Date.now());
+                return results.detections || [];
+            }
+
+            return this.getFallbackFaceDetection();
         } catch (error) {
             console.error('MediaPipe detection error:', error);
             return this.getFallbackFaceDetection();
@@ -230,7 +357,7 @@ class FaceDetection {
             this.canvasHeight = window.cameraManager?.outputCanvas?.height || 480;
         }
         
-        return {
+        const result = {
             x: box.x,
             y: box.y,
             width: box.width,
@@ -244,6 +371,19 @@ class FaceDetection {
             normalizedWidth: box.width / this.canvasWidth,
             normalizedHeight: box.height / this.canvasHeight
         };
+
+        // Include landmarks if provided (normalized coords). Also provide a
+        // pixel-space copy for convenience for mask placement code.
+        if (detection.landmarks) {
+            result.landmarks = detection.landmarks;
+            result.landmarks_px = detection.landmarks.map(p => ({
+                x: (p.x || 0) * this.canvasWidth,
+                y: (p.y || 0) * this.canvasHeight,
+                z: p.z
+            }));
+        }
+
+        return result;
     }
     
     addToHistory(face) {

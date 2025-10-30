@@ -95,3 +95,40 @@ class GeminiService:
                 'success': False,
                 'error': str(e)
             }
+
+    def enhance_mask_image(self, image_base64, mask_id, face_data=None):
+        """Compatibility wrapper used by the Flask app.
+
+        For now this method will attempt to call the AI pipeline to get
+        enhancement metadata but will return the original image data as
+        `processed_image`. This avoids breaking the app if the external
+        API does not return image bytes directly.
+        """
+        try:
+            # image_base64 may be a data URL like 'data:image/jpeg;base64,...'
+            if ',' in image_base64:
+                b64 = image_base64.split(',', 1)[1]
+            else:
+                b64 = image_base64
+
+            image_bytes = base64.b64decode(b64)
+
+            # Use the existing AI image processing pipeline (best-effort).
+            prompt = f"Apply Star Wars themed mask overlay: {mask_id}. Face data: {json.dumps(face_data or {})}"
+            ai_result = self.process_image_with_filter(image_bytes, prompt)
+
+            # The current process_image_with_filter returns metadata/descriptions
+            # but not modified image bytes. Return the original image as the
+            # processed image so the client still receives an image.
+            return {
+                'success': ai_result.get('success', False),
+                'processed_image': image_base64,
+                'description': ai_result.get('description'),
+                'suggestions': ai_result.get('suggestions')
+            }
+
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }

@@ -56,6 +56,43 @@ class CameraManager {
         this.canvas = document.getElementById('camera-canvas');
         this.errorElement = document.getElementById('camera-error');
         
+        // Ensure we have a video element and canvas. If the page didn't include
+        // them (some templates may omit them), create sane defaults so the
+        // camera module still works and is visible.
+        if (!this.video) {
+            this.video = document.createElement('video');
+            this.video.id = 'camera-video';
+            this.video.autoplay = true;
+            this.video.muted = true; // allow autoplay in some browsers
+            this.video.playsInline = true;
+            // Insert video into a sensible container
+            const container = document.querySelector('.camera-container') || document.body;
+            // Create a wrapper if necessary
+            if (!document.querySelector('.camera-container')) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'camera-container';
+                wrapper.style.position = 'relative';
+                wrapper.style.display = 'flex';
+                wrapper.style.justifyContent = 'center';
+                wrapper.style.alignItems = 'center';
+                container.appendChild(wrapper);
+                wrapper.appendChild(this.video);
+            } else {
+                container.appendChild(this.video);
+            }
+        }
+
+        if (!this.canvas) {
+            this.canvas = document.createElement('canvas');
+            this.canvas.id = 'camera-canvas';
+            // Make sure the canvas sits underneath the overlay canvas
+            this.canvas.style.position = 'absolute';
+            this.canvas.style.top = '0';
+            this.canvas.style.left = '0';
+            const cameraContainer = document.querySelector('.camera-container') || document.body;
+            cameraContainer.appendChild(this.canvas);
+        }
+
         // Create output canvas for mask overlay
         this.outputCanvas = document.createElement('canvas');
         this.outputCanvas.id = 'output-canvas';
@@ -68,12 +105,16 @@ class CameraManager {
         if (this.canvas) {
             this.context = this.canvas.getContext('2d');
             this.outputContext = this.outputCanvas.getContext('2d');
-            
-            // Insert output canvas into DOM
-            const cameraContainer = document.querySelector('.camera-container');
-            if (cameraContainer) {
-                cameraContainer.appendChild(this.outputCanvas);
+
+            // Insert output canvas into DOM near the camera elements. Try
+            // several fallbacks to be robust against different templates.
+            const cameraContainer = document.querySelector('.camera-container') || this.canvas.parentElement || document.body;
+            // Ensure container is positioned for absolutely-positioned children
+            if (cameraContainer && window.getComputedStyle(cameraContainer).position === 'static') {
+                cameraContainer.style.position = 'relative';
             }
+
+            cameraContainer.appendChild(this.outputCanvas);
         }
         
         console.log('Camera elements initialized');
@@ -119,19 +160,34 @@ class CameraManager {
             
             this.stream = await navigator.mediaDevices.getUserMedia(constraints);
             this.video.srcObject = this.stream;
+            // Improve autoplay behavior in some browsers
+            this.video.autoplay = true;
+            this.video.muted = true;
+            this.video.playsInline = true;
             
-            await new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => reject(new Error('Video load timeout')), 10000);
-                
-                this.video.onloadedmetadata = async () => {
+            await new Promise((resolve) => {
+                // Use addEventListener with { once: true } so we don't double-bind
+                // handlers if initialize() is called multiple times.
+                const timeout = setTimeout(() => {
+                    console.warn('Video load timeout — continuing since stream is attached');
+                    resolve();
+                }, 8000);
+
+                this.video.addEventListener('loadedmetadata', async () => {
                     clearTimeout(timeout);
                     try {
+                        // Try to play; some browsers require muted autoplay
                         await this.video.play();
-                        resolve();
                     } catch (playError) {
-                        reject(playError);
+                        // If play() fails, still resolve — the stream is attached and
+                        // the user can click to play. We'll show a non-fatal warning.
+                        console.warn('video.play() failed:', playError);
                     }
-                };
+
+                    // Setup canvas sizes now that metadata is available
+                    this.setupCanvas();
+                    resolve();
+                }, { once: true });
             });
             
             this.isInitialized = true;
@@ -156,7 +212,9 @@ class CameraManager {
         this.canvas.height = this.outputCanvas.height = height;
         
         // Set CSS dimensions for responsive display
-        const containerWidth = this.video.clientWidth;
+        // clientWidth can be 0 if the element isn't visible yet; fall back to
+        // intrinsic video width to avoid 0x0 canvases.
+        let containerWidth = this.video.clientWidth || width || 640;
         const aspectRatio = height / width;
         const containerHeight = containerWidth * aspectRatio;
         
@@ -375,10 +433,34 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Initializing camera manager...');
     window.cameraManager = new CameraManager();
     
-    // Auto-initialize after delay
+    // Auto-initialize after a short delay so other scripts can bind. Reduced
+    // slightly to improve perceived load time.
     setTimeout(() => {
         if (window.cameraManager) {
             window.cameraManager.initialize();
         }
-    }, 1000);
+    }, 200);
 });
+
+// Allow switching between front and rear cameras on supported devices
+CameraManager.prototype.switchCamera = async function() {
+    try {
+        // Toggle facing mode
+        this.facingMode = this.facingMode === 'user' ? 'environment' : 'user';
+
+        // Stop existing tracks
+        if (this.stream) {
+            this.stream.getTracks().forEach(track => track.stop());
+            this.stream = null;
+        }
+
+        // Mark not initialized so initialize() will re-acquire camera
+        this.isInitialized = false;
+
+        // Re-initialize with new facing mode
+        await this.initialize();
+    } catch (err) {
+        console.error('Error switching camera:', err);
+        this.handleCameraError(err);
+    }
+};

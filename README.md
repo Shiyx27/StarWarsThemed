@@ -100,5 +100,17 @@ We've built a **complete web-based photobooth platform** that:
 
 *Note: For the best experience, use a modern browser with camera support.*
 
+## FaceLandmarker model (landmarks) troubleshooting
+
+If the browser console shows a 404 when trying to load the MediaPipe FaceLandmarker model, landmark-based detection (fine-grained eye/nose landmarks) will be unavailable and the app will fall back to bounding-box heuristics.
+
+To enable landmark-based placement you can host the model locally and point the loader at it:
+
+1. Create a folder `static/models` in the project root.
+2. Download the FaceLandmarker task file (for the correct MediaPipe Tasks release) and save it as `static/models/face_landmarker.task`.
+3. Update the model path in `static/js/faceDetection.js` by replacing the `modelAssetPath` with `/static/models/face_landmarker.task` or update the `candidateUrls` array.
+
+Note: the exact model file URL depends on MediaPipe Tasks releases; if you have trouble locating the right `.task` file, check the MediaPipe Tasks release notes or use a public CDN and update `static/js/faceDetection.js` accordingly.
+
 
 

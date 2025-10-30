@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
+from werkzeug.utils import secure_filename
 from flask_cors import CORS
 import os
 import base64
@@ -104,9 +105,15 @@ def apply_mask():
         
         # Optional: Use Gemini for additional AI processing
         if mask_id != 'none' and app.config.get('ENABLE_AI_PROCESSING'):
+            # Call the compatibility wrapper on the GeminiService. It will
+            # return metadata and (at minimum) echo the original image back
+            # as `processed_image` if a transformed image isn't produced.
             ai_result = gemini_service.enhance_mask_image(image_data, mask_id, face_data)
             if ai_result.get('success'):
-                result.update(ai_result)
+                # Merge AI metadata, and prefer AI-processed image when present
+                if ai_result.get('processed_image'):
+                    result['processed_image'] = ai_result.get('processed_image')
+                result.update({k: v for k, v in ai_result.items() if k != 'processed_image'})
         
         return jsonify(result)
         
@@ -124,8 +131,13 @@ def capture_photo():
         if not image_data:
             return jsonify({'error': 'No image data provided'}), 400
         
-        # Decode and save image
-        image_bytes = base64.b64decode(image_data.split(',')[1])
+        # Decode and save image (support both data URLs and raw base64)
+        if ',' in image_data:
+            image_b64 = image_data.split(',', 1)[1]
+        else:
+            image_b64 = image_data
+
+        image_bytes = base64.b64decode(image_b64)
         
         # Generate filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -152,9 +164,11 @@ def capture_photo():
 def download_photo(filename):
     """Download captured photo"""
     try:
-        filepath = os.path.join('uploads', filename)
+        uploads_dir = app.config.get('UPLOAD_FOLDER', 'uploads')
+        filepath = os.path.join(uploads_dir, filename)
         if os.path.exists(filepath):
-            return send_file(filepath, as_attachment=True)
+            # Use send_from_directory for safer downloads
+            return send_from_directory(directory=uploads_dir, path=filename, as_attachment=True)
         else:
             return jsonify({'error': 'File not found'}), 404
     except Exception as e:
@@ -182,6 +196,52 @@ def get_gallery():
         
         return jsonify(photos)
         
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/delete-photo/<path:filename>', methods=['DELETE'])
+def delete_photo(filename):
+    """Delete a photo from the uploads directory."""
+    try:
+        uploads_dir = app.config.get('UPLOAD_FOLDER', 'uploads')
+        # Secure the filename (avoid directory traversal)
+        safe_name = secure_filename(filename)
+        filepath = os.path.join(uploads_dir, safe_name)
+        if not os.path.exists(filepath):
+            return jsonify({'error': 'File not found'}), 404
+        os.remove(filepath)
+        return jsonify({'success': True, 'deleted': safe_name}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/upload-model', methods=['POST'])
+def upload_model():
+    """Upload a MediaPipe .task model to static/models for local loading by the frontend."""
+    try:
+        if 'model' not in request.files:
+            return jsonify({'error': 'No file part'}), 400
+        file = request.files['model']
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
+
+        filename = secure_filename(file.filename)
+        models_dir = os.path.join(app.root_path, 'static', 'models')
+        os.makedirs(models_dir, exist_ok=True)
+        save_path = os.path.join(models_dir, filename)
+
+        # Read file bytes to validate size before saving
+        file_bytes = file.read()
+        min_size = int(app.config.get('MODEL_MINIMUM_BYTES', 50 * 1024))  # default 50KB
+        if len(file_bytes) < min_size:
+            return jsonify({'error': 'Uploaded file is too small to be a valid model'}), 400
+
+        # Write bytes to disk
+        with open(save_path, 'wb') as f:
+            f.write(file_bytes)
+
+        return jsonify({'success': True, 'path': f'/static/models/{filename}', 'size': len(file_bytes)}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

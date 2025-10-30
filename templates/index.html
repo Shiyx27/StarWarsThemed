@@ -18,8 +18,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     
-    <!-- MediaPipe Face Detection (Optional) -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.js" crossorigin="anonymous"></script>
+    <!-- MediaPipe Face Detection (Optional) - load as module to support ES exports -->
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <!-- Loading Screen -->
@@ -198,9 +198,56 @@
         <div id="notification-container" class="notification-container"></div>
     </div>
 
+    <!-- Calibration Wizard Modal -->
+    <div id="calibration-wizard" class="modal" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Mask Calibration Wizard</h3>
+                <button class="btn btn--close" id="wizard-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="wizard-step" data-step="0">
+                    <p id="wizard-instruction">This wizard will help align your selected mask. Press <strong>Start</strong> and follow the on-screen prompts.</p>
+                    <div class="wizard-actions">
+                        <button id="wizard-start" class="btn btn--primary">Start</button>
+                        <button id="wizard-cancel" class="btn btn--secondary">Cancel</button>
+                    </div>
+                </div>
+                <div id="wizard-progress" style="display:none;">
+                    <p id="wizard-status">Collecting samples... Please hold still and look at the camera.</p>
+                    <div id="wizard-samples">Samples taken: <span id="wizard-sample-count">0</span>/3</div>
+                    <div class="wizard-actions">
+                        <button id="wizard-capture" class="btn btn--primary">Capture Sample</button>
+                        <button id="wizard-finish" class="btn btn--primary" disabled>Finish</button>
+                        <button id="wizard-abort" class="btn btn--secondary">Abort</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model upload/check panel -->
+    <div class="modal" id="model-panel" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>FaceLandmarker Model</h3>
+                <button class="btn btn--close" id="model-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>To enable landmark-based mask placement, you can upload a MediaPipe <code>.task</code> model file here. The file will be saved to <code>/static/models/</code>.</p>
+                <input type="file" id="model-file-input" accept=".task" />
+                <div class="wizard-actions" style="margin-top:8px;">
+                    <button id="model-upload-btn" class="btn btn--primary">Upload Model</button>
+                    <button id="model-check-btn" class="btn btn--secondary">Check Local Model</button>
+                </div>
+                <div id="model-check-status" style="margin-top:8px;color:#ccc;"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Audio Elements -->
     <audio id="background-audio" loop>
-        <source src="{{ url_for('static', filename='audio/imperial-march.wav') }}" type="audio/wav">
+        <source src="{{ url_for('static', filename='audio/imperial-march.mp3') }}" type="audio/mpeg">
     </audio>
 
     <!-- Scripts -->

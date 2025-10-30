@@ -284,6 +284,25 @@ body::before {
     z-index: 3;
 }
 
+/* Make mask controls inside the overlay interactive */
+.mask-controls {
+    pointer-events: auto;
+    position: absolute;
+    bottom: var(--spacing-md);
+    right: var(--spacing-md);
+    z-index: 5;
+    width: 320px;
+    max-width: calc(100% - 32px);
+}
+
+.mask-controls .adjustment-panel {
+    pointer-events: auto;
+    background: rgba(10,10,10,0.85);
+    border: 1px solid var(--color-sith-red);
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-sm);
+}
+
 .targeting-system {
     position: relative;
     width: 100%;
@@ -509,6 +528,13 @@ body::before {
     transform: scale(0.98);
 }
 
+.btn--danger {
+    background: linear-gradient(90deg, #b00000, #ff3333);
+    color: #fff;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: none;
+}
+
 .lightsaber-glow {
     position: absolute;
     top: -3px;
@@ -588,9 +614,15 @@ body::before {
 }
 
 .filter-icon {
-    font-size: 2rem;
+    font-size: 2.2rem;
     margin-bottom: var(--spacing-sm);
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
     filter: drop-shadow(0 0 10px var(--color-sith-red-glow));
 }
 
@@ -664,7 +696,7 @@ body::before {
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: 10px 14px;
     background: var(--color-imperial-gray);
     border: 1px solid var(--color-text-muted);
     border-radius: var(--radius-md);
@@ -672,7 +704,8 @@ body::before {
     cursor: pointer;
     transition: all var(--transition-fast);
     font-family: var(--font-primary);
-    font-size: 0.9rem;
+    font-size: 1rem;
+    min-width: 140px;
 }
 
 .audio-btn:hover {

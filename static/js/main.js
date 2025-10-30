@@ -6,6 +6,8 @@ class PhotoboothApp {
     constructor() {
         this.isInitialized = false;
         this.loadingScreen = null;
+        // Store previously active mask to allow restore after removal
+        this._previousMaskId = null;
         
         this.init();
     }
@@ -48,7 +50,7 @@ class PhotoboothApp {
         } catch (error) {
             console.warn('Camera initialization failed:', error);
         }
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 200));
     }
     
     async initializeMasks() {
@@ -86,6 +88,54 @@ class PhotoboothApp {
         const galleryBtn = document.getElementById('gallery-btn');
         if (galleryBtn) {
             galleryBtn.addEventListener('click', this.showGallery.bind(this));
+        }
+
+        // Remove Mask / Toggle Mask button (now acts as Remove/Restore)
+        const maskToggle = document.getElementById('mask-toggle');
+        if (maskToggle) {
+            // Ensure accessible attributes
+            maskToggle.setAttribute('role', 'button');
+            maskToggle.setAttribute('aria-pressed', 'false');
+
+            maskToggle.addEventListener('click', (e) => {
+                if (!window.maskManager) {
+                    this.showNotification('No mask system available', 'warn');
+                    return;
+                }
+
+                const active = window.maskManager.getActiveMask();
+
+                if (active) {
+                    // Store previous mask id so we can restore it
+                    try { this._previousMaskId = active.id; } catch (e) { this._previousMaskId = null; }
+                    // Reset to no mask
+                    if (typeof window.maskManager.resetMask === 'function') {
+                        window.maskManager.resetMask();
+                        this.showNotification('Mask removed', 'success');
+                        maskToggle.setAttribute('aria-pressed', 'true');
+                        // Update label to indicate restore action
+                        maskToggle.querySelector('span') && (maskToggle.querySelector('span').textContent = 'Restore Mask');
+                    }
+                } else {
+                    // No active mask – attempt to restore previous mask
+                    if (this._previousMaskId) {
+                        const all = window.maskManager.getAllMasks();
+                        const prev = all.find(m => m.id === this._previousMaskId);
+                        if (prev) {
+                            window.maskManager.selectMask(prev);
+                            this.showNotification('Mask restored', 'success');
+                            maskToggle.setAttribute('aria-pressed', 'false');
+                            maskToggle.querySelector('span') && (maskToggle.querySelector('span').textContent = 'Remove Mask');
+                            // Clear previous so subsequent remove stores again
+                            this._previousMaskId = null;
+                        } else {
+                            this.showNotification('No previous mask to restore', 'warn');
+                        }
+                    } else {
+                        this.showNotification('No mask to restore', 'warn');
+                    }
+                }
+            });
         }
         
         // Audio toggle
@@ -164,7 +214,12 @@ class PhotoboothApp {
             
             // Play capture sound
             if (window.audioManager) {
-                window.audioManager.playSound('camera-shutter');
+                // Use the robust helper which matches AudioManager keys
+                if (typeof window.audioManager.playCaptureSound === 'function') {
+                    window.audioManager.playCaptureSound();
+                } else {
+                    window.audioManager.playSound('capture-sound');
+                }
             }
             
             // Capture image with mask overlay
@@ -208,7 +263,12 @@ class PhotoboothApp {
             
             const result = await response.json();
             console.log('Photo saved:', result.filename);
-            
+            // Refresh gallery so the new photo is visible
+            try {
+                await this.showGallery();
+            } catch (err) {
+                console.warn('Could not refresh gallery immediately:', err);
+            }
         } catch (error) {
             console.error('Save error:', error);
             throw error;
@@ -255,18 +315,38 @@ class PhotoboothApp {
         const item = document.createElement('div');
         item.className = 'gallery-item';
         
+        // Set src directly so images appear immediately when gallery opens
         item.innerHTML = `
-            <img data-src="${photo.url}" alt="Sith Photo with Mask" loading="lazy">
+            <img src="${photo.url}" alt="Sith Photo with Mask" loading="lazy">
             <div class="gallery-overlay">
                 <div class="gallery-actions">
                     <button class="btn btn--small" onclick="downloadPhoto('${photo.filename}')">
                         Download
+                    </button>
+                    <button class="btn btn--small btn--danger" onclick="window.photoboothApp.deletePhoto('${photo.filename}')">
+                        Delete
                     </button>
                 </div>
             </div>
         `;
         
         return item;
+    }
+
+    async deletePhoto(filename) {
+        try {
+            const res = await fetch(`/api/delete-photo/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+            if (!res.ok) {
+                const txt = await res.text();
+                throw new Error(txt || 'Delete failed');
+            }
+            this.showSuccessMessage('Photo deleted');
+            // Refresh gallery
+            await this.showGallery();
+        } catch (err) {
+            console.error('Delete photo error:', err);
+            this.showErrorMessage('Failed to delete photo');
+        }
     }
     
     toggleAudioPanel() {
